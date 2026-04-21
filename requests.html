@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0A4A8A">
+<title>KIB WFM — Requests</title>
+<link rel="stylesheet" href="css/kib.css">
+<style>
+.req-card{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);}
+.req-card.urgent{border-left:3px solid var(--amber);}
+.req-hdr{padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+.req-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.req-detail{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 14px 12px;}
+.req-dt{background:var(--bg);border-radius:8px;padding:8px 10px;}
+.req-dt-lbl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;}
+.req-dt-val{font-size:13px;font-weight:700;margin-top:2px;}
+.req-actions{display:flex;gap:7px;padding:0 14px 12px;}
+.req-footer{padding:5px 14px 9px;font-size:10px;color:var(--t3);border-top:1px solid var(--border2);}
+.filter-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px;padding-bottom:2px;}
+.filter-row::-webkit-scrollbar{display:none;}
+.fchip{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);font-size:11px;font-weight:700;color:var(--t2);cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.fchip.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+</style>
+</head>
+<body>
+<div id="kib-topbar"></div>
+<div id="kib-app">
+  <div id="user-strip-wrap"></div>
+  <div class="page-content">
+    <div id="req-loading" style="text-align:center;padding:40px;color:var(--t2);">
+      <div class="kib-spin" style="margin:0 auto 12px;"></div>
+      Loading requests…
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar" style="margin-top:12px;">
+      <button class="tab-item active" id="tab-pending"  onclick="switchTab('pending')">⏳ Pending<span id="pend-badge" class="nb-badge" style="position:relative;top:auto;right:auto;margin-left:4px;display:none;"></span></button>
+      <button class="tab-item"        id="tab-leaves"   onclick="switchTab('leaves')">🏖 Leaves</button>
+      <button class="tab-item"        id="tab-swaps"    onclick="switchTab('swaps')">🔄 Swaps</button>
+      <button class="tab-item"        id="tab-prefs"    onclick="switchTab('prefs')">📋 Schedule</button>
+    </div>
+
+    <!-- Filters (management only) -->
+    <div id="filter-row" style="display:none;">
+      <div class="filter-row" id="team-filters">
+        <div class="fchip active" onclick="setTeamFilter('All',this)">All Teams</div>
+      </div>
+    </div>
+
+    <div id="pane-pending"></div>
+    <div id="pane-leaves"  style="display:none;"></div>
+    <div id="pane-swaps"   style="display:none;"></div>
+    <div id="pane-prefs"   style="display:none;"></div>
+
+  </div>
+</div>
+<div id="kib-bottomnav"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/nav.js"></script>
+<script>
+if (!Auth.guard()) throw 0;
+
+const user     = Auth.user();
+const isMgmt   = Auth.isManagement();
+const isWFM    = Auth.isWFM();
+let data       = null;
+let teamFilter = 'All';
+
+Nav.init('requests');
+document.getElementById('user-strip-wrap').innerHTML = Nav.renderUserStrip();
+
+async function init(force = false) {
+  try {
+    data = await API.getAll(force);
+    Nav.setSyncStatus(true);
+    const ld=document.getElementById('req-loading');
+    if(ld)ld.style.display='none';
+    if (isMgmt) {
+      document.getElementById('filter-row').style.display = '';
+      buildTeamFilters();
+    }
+    try { renderAll(); } catch(re){ console.error('renderAll error:',re); }
+  } catch(e) {
+    Nav.setSyncStatus(false);
+    console.error('Load error:', e);
+    U.toast('Connection error — retrying…', 'warn');
+    if (!window._reqRetried) {
+      window._reqRetried = true;
+      setTimeout(() => { window._reqRetried = false; init(true); }, 3000);
+    } else {
+      U.toast('Failed to load — check connection', 'err');
+    }
+  }
+}
+
+function switchTab(t) {
+  ['pending','leaves','swaps','prefs'].forEach(id => {
+    document.getElementById('pane-'+id).style.display = id===t?'':'none';
+    document.getElementById('tab-'+id).classList.toggle('active', id===t);
+  });
+}
+
+function buildTeamFilters() {
+  const teams = ['All', ...CFG.TEAMS.filter(t => (data?.agents||[]).some(a => a.t===t))];
+  const row   = document.getElementById('team-filters');
+  row.innerHTML = teams.map(t =>
+    `<div class="fchip ${t==='All'?'active':''}" onclick="setTeamFilter('${t}',this)">${t}</div>`
+  ).join('');
+}
+
+function setTeamFilter(t, el) {
+  teamFilter = t;
+  document.querySelectorAll('#team-filters .fchip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  try { renderAll(); } catch(re){ console.error('renderAll error:',re); }
+}
+
+function renderAll() {
+  renderPending();
+  renderLeaves();
+  renderSwaps();
+  renderPrefs();
+}
+
+/* ── Filter helpers ───────────────────────────────── */
+function filterByRole(items, agentField='agent') {
+  return items.filter(r => {
+    const a = r[agentField] || r[agentField.charAt(0).toUpperCase()+agentField.slice(1)] || '';
+    if (!isMgmt && a !== user.name) return false;
+    if (isMgmt && teamFilter !== 'All') {
+      const ag = (data?.agents||[]).find(x => (x.n||x.name) === a);
+      if (!ag || ag.t !== teamFilter) return false;
+    }
+    return true;
+  });
+}
+
+/* ── PENDING ──────────────────────────────────────── */
+function renderPending() {
+  const leaves  = filterByRole(data?.leaves||[]).filter(l => (l.status||'').toLowerCase() === 'pending');
+  const swaps   = (data?.swaps||[]).filter(s => {
+    const st = (s.status||'').toLowerCase();
+    if (st === 'pending_peer') return (s.to||s.To) === user.name || isMgmt;
+    if (st === 'pending_mgmt') return isMgmt;
+    return false;
+  });
+  const prefs   = filterByRole(data?.scheduleRequests||[], 'agent').filter(r => (r.status||'').toLowerCase() === 'pending');
+  const all     = [
+    ...leaves.map(l => ({...l,_k:'leave'})),
+    ...swaps.map(s  => ({...s,_k:'swap'})),
+    ...prefs.map(r  => ({...r,_k:'pref'})),
+  ];
+
+  const badge = document.getElementById('pend-badge');
+  if (all.length > 0) {
+    badge.style.display=''; badge.textContent=all.length;
+    Nav.setBadge('requests', all.length);
+  } else {
+    badge.style.display='none';
+  }
+
+  if (!all.length) {
+    document.getElementById('pane-pending').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-msg">No pending requests</div><div class="empty-sub">All clear!</div></div>`;
+    return;
+  }
+  document.getElementById('pane-pending').innerHTML = all.map(r => buildCard(r, true)).join('');
+}
+
+/* ── LEAVES ───────────────────────────────────────── */
+function renderLeaves() {
+  const leaves = filterByRole(data?.leaves||[])
+    .sort((a,b) => new Date(b.ts||b.Timestamp||0)-new Date(a.ts||a.Timestamp||0));
+  document.getElementById('pane-leaves').innerHTML = leaves.length
+    ? leaves.map(l => buildCard({...l,_k:'leave'}, isMgmt && (l.status||'').toLowerCase()==='pending')).join('')
+    : empty('🏖','No leave requests');
+}
+
+/* ── SWAPS ────────────────────────────────────────── */
+function renderSwaps() {
+  const swaps = isMgmt
+    ? (data?.swaps||[]).sort((a,b) => new Date(b.ts||b.Timestamp||0)-new Date(a.ts||a.Timestamp||0))
+    : (data?.swaps||[]).filter(s => (s.from||s.From)===user.name||(s.to||s.To)===user.name)
+        .sort((a,b) => new Date(b.ts||b.Timestamp||0)-new Date(a.ts||a.Timestamp||0));
+
+  if (!swaps.length) {
+    document.getElementById('pane-swaps').innerHTML = empty('No swap requests');
+    return;
+  }
+
+  document.getElementById('pane-swaps').innerHTML = swaps.map(s => {
+    const id   = s.id||s.ID;
+    const from = s.from||s.From||'';
+    const to   = s.to||s.To||'';
+    const date = s.date||s.Date||'';
+    const fromShift = s.shiftFrom||s.FromShift||'';
+    const toShift   = s.shiftTo||s.ToShift||'';
+    const status    = (s.status||s.Status||'pending').toLowerCase();
+    const isPending = status === 'pending';
+
+    const statusColor = status==='approved'?'#16A34A':status==='rejected'?'#DC2626':'#B45309';
+    const statusBg    = status==='approved'?'#DCFCE7':status==='rejected'?'#FEE2E2':'#FEF3C7';
+
+    const actionBtns = (isMgmt && isPending) ? `
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button onclick="actOnRequest('${id}','swap','approve')"
+          style="flex:1;padding:8px;border-radius:10px;border:none;background:#0A4A8A;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">
+          ✓ Approve
+        </button>
+        <button onclick="actOnRequest('${id}','swap','reject')"
+          style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #E5E7EB;background:#fff;color:#DC2626;font-size:12px;font-weight:800;cursor:pointer;">
+          ✕ Reject
+        </button>
+      </div>` : '';
+
+    return `<div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:800;color:var(--t1);">🔄 Shift Swap</div>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${statusBg};color:${statusColor};">${status.toUpperCase()}</span>
+      </div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:4px;">
+        <b style="color:var(--t1);">${from}</b> ↔ <b style="color:var(--t1);">${to}</b>
+      </div>
+      <div style="font-size:11px;color:var(--t2);">
+        📅 ${U.normDate(date)} &nbsp;|&nbsp; ${fromShift||'?'} ↔ ${toShift||'?'}
+      </div>
+      ${s.reason||s.Reason ? `<div style="font-size:11px;color:var(--t2);margin-top:4px;">💬 ${s.reason||s.Reason}</div>` : ''}
+      ${actionBtns}
+    </div>`;
+  }).join('');
+}
+
+
+function buildCard(r, canAct) {
+  const isLeave = r._k === 'leave';
+  const isSwap  = r._k === 'swap';
+  const isPref  = r._k === 'pref';
+
+  const icon  = isLeave?'🏖':isSwap?'🔄':'📋';
+  const iconBg= isLeave?'var(--amber-bg)':isSwap?'var(--teal-bg)':'rgba(13,92,166,.08)';
+  const status= (r.status||r.Status||'pending').toLowerCase();
+  const sP    = status==='approved'?'pill-green':status==='rejected'?'pill-red':status.includes('peer')||status.includes('mgmt')?'pill-amber':'pill-amber';
+  const sLbl  = status==='pending_peer'?'⏳ Peer Review':status==='pending_mgmt'?'🔄 Mgmt Review':status;
+
+  const title = isLeave ? `${r.agent||r.Agent} — ${r.type||r.Type||'Leave'}`
+              : isSwap  ? `Swap: ${r.from||r.From} ↔ ${r.to||r.To}`
+              : `Schedule Preference — ${r.agent||r.Agent}`;
+
+  const sub   = isLeave ? `${U.normDate(r.startDate||r.From||'')} → ${U.normDate(r.endDate||r.To||'')} (${r.days||r.Days||'?'} day${r.days>1?'s':''})`
+              : isSwap  ? `${U.normDate(r.date||r.Date||'')} · ${r.shiftFrom||r.FromShift||'—'} ↔ ${r.shiftTo||r.ToShift||'—'}`
+              : `${U.normDate(r.periodFrom||'')} → ${U.normDate(r.periodTo||'')}`;
+
+  const id    = r.id||r.Ref||r.ID||'';
+  const reason= r.reason||r.Reason||r.notes||r.Notes||r.specialRequest||r.SpecialRequest||'';
+
+  // Extra details for prefs
+  let extraDetails = '';
+  if (isPref) {
+    const parts = [];
+    if (r.morningWeek||r['Morning/Week'])   parts.push(`Morning: ${r.morningWeek||r['Morning/Week']}/wk`);
+    if (r.afternoonWeek||r['Afternoon/Week'])parts.push(`Afternoon: ${r.afternoonWeek||r['Afternoon/Week']}/wk`);
+    if (r.nightWeek||r['Night/Week'])       parts.push(`Night: ${r.nightWeek||r['Night/Week']}/wk`);
+    if (r.preferred||r.PreferredShifts)     parts.push(`Preferred: ${r.preferred||r.PreferredShifts}`);
+    if (r.offDayType||r.OffDayType)         parts.push(`Days off: ${r.offDayType||r.OffDayType}`);
+    if (parts.length) extraDetails = `<div style="margin:8px 14px;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--t2);">${parts.join(' · ')}</div>`;
+  }
+
+  const actBtns = canAct ? `
+    <div class="req-actions">
+      <button class="btn btn-sm btn-green flex-1" onclick="approve('${id}','${r._k}')">✓ Approve</button>
+      <button class="btn btn-sm btn-red  flex-1" onclick="reject('${id}','${r._k}')">✕ Reject</button>
+    </div>` : '';
+
+  const isUrgent = status.includes('pending') && canAct;
+
+  return `<div class="req-card ${isUrgent?'urgent':''}">
+    <div class="req-hdr">
+      <div class="req-icon" style="background:${iconBg};">${icon}</div>
+      <div class="flex-1">
+        <div style="font-size:13px;font-weight:700;">${title}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px;">${sub}</div>
+      </div>
+      <span class="pill ${sP}" style="flex-shrink:0;">${sLbl}</span>
+    </div>
+    ${reason?`<div style="padding:0 14px 10px;font-size:12px;color:var(--t2);font-style:italic;">"${reason}"</div>`:''}
+    ${extraDetails}
+    ${actBtns}
+    <div class="req-footer">${U.timeAgo(r.ts||r.Timestamp||'')} · ID: ${id.slice(0,12)||'—'}</div>
+  </div>`;
+}
+
+/* ── Approve / Reject ─────────────────────────────── */
+async function approve(id, kind) {
+  await actOnRequest(id, kind, 'approve');
+}
+async function reject(id, kind) {
+  const note = prompt('Rejection reason (optional):') ?? '';
+  await actOnRequest(id, kind, 'reject', note);
+}
+
+async function actOnRequest(id, kind, action, note='') {
+  if (!id) return;
+  try {
+    if (kind === 'leave') {
+      await API.approveLeave({ leaveId:id, action, approvedBy:user.name, note });
+    } else if (kind === 'swap') {
+      // Find the swap to get all fields needed for schedule update
+      const swp = (data?.swaps||[]).find(s=>(s.id||s.ID)===id);
+      if (action === 'approve') {
+        await fetch(CFG.N8N.APPROVE_SWAP, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            id,
+            approved: true,
+            actionedBy: user.name,
+            from:      swp?.from      || swp?.From      || '',
+            to:        swp?.to        || swp?.To        || '',
+            date:      swp?.date      || swp?.Date      || '',
+            fromShift: swp?.shiftFrom || swp?.FromShift || '',
+            toShift:   swp?.shiftTo   || swp?.ToShift   || ''
+          })
+        });
+      } else {
+        await fetch(CFG.N8N.APPROVE_SWAP, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ id, approved: false, actionedBy: user.name })
+        });
+      }
+    } else {
+      // Schedule preference — update status
+      await API.submitScheduleRequest({
+        agent: '', team: '', date: '', currentShift: '', requestedShift: '',
+        reason: note, Ref: id, Status: action==='approve'?'approved':'rejected'
+      });
+    }
+    U.toast(`${action==='approve'?'Approved':'Rejected'} ✓`, 'ok');
+    API.clearCache('getAll'); // cache cleared — next page load will refresh
+    Nav.setSyncStatus(true);
+    try { renderAll(); } catch(re){ console.error('renderAll error:',re); }
+  } catch(e) {
+    Nav.setSyncStatus(false); U.toast('Failed — try again','err'); }
+}
+
+function empty(icon, msg, sub='') {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-msg">${msg}</div>${sub?`<div class="empty-sub">${sub}</div>`:''}</div>`;
+}
+
+init();
+</script>
+</body>
+</html>

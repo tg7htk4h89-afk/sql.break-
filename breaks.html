@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0A4A8A">
+<title>KIB WFM — Breaks</title>
+<link rel="stylesheet" href="css/kib.css">
+<style>
+.bal-card{background:linear-gradient(135deg,var(--navy2),var(--navy) 60%,#0A7FAE);border-radius:var(--rl);padding:17px;margin-bottom:12px;position:relative;overflow:hidden;}
+.bal-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--teal2),var(--teal-b),var(--teal2),transparent);}
+.bal-num{font-size:44px;font-weight:900;color:#fff;line-height:1;}
+.bal-unit{font-size:12px;color:rgba(255,255,255,.45);padding-bottom:7px;}
+.bal-bar{background:rgba(255,255,255,.12);border-radius:3px;height:5px;overflow:hidden;margin-top:10px;}
+.bal-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--teal),var(--teal2));transition:width .4s;}
+.break-live{background:linear-gradient(135deg,#0A4A8A,#0D5CA6);border-radius:var(--rl);padding:15px;margin-bottom:12px;display:none;}
+.break-live.show{display:block;}
+.bl-timer{font-size:38px;font-weight:900;color:var(--teal2);letter-spacing:3px;font-family:'DM Mono',monospace;}
+.bl-prog-wrap{background:rgba(255,255,255,.12);border-radius:3px;height:4px;margin-top:12px;}
+.bl-prog{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--teal),var(--teal2));transition:width .5s;}
+.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px;}
+@media(min-width:400px){.slot-grid{grid-template-columns:repeat(4,1fr);}}
+.slot{border:1.5px solid var(--border);border-radius:var(--r);padding:10px 4px;text-align:center;cursor:pointer;background:var(--white);transition:.14s;-webkit-user-select:none;user-select:none;}
+.slot:not(.blocked):not(.mine):not(.full):active{transform:scale(.96);}
+.slot.sel{border-color:var(--navy);background:rgba(13,92,166,.06);}
+.slot.full{background:var(--red-bg);border-color:rgba(220,38,38,.2);cursor:default;}
+.slot.mine{background:var(--teal-bg);border-color:var(--teal-b);cursor:default;}
+.slot.partial{background:var(--amber-bg);border-color:rgba(217,119,6,.2);}
+.slot.blocked{background:var(--bg);opacity:.4;cursor:not-allowed;}
+.slot-time{font-size:12px;font-weight:800;}
+.slot-cnt{font-size:10px;color:var(--t2);margin-top:2px;}
+.slot.mine .slot-time{color:var(--teal);}
+.slot.full .slot-time{color:var(--red);}
+.slot.sel .slot-time,.slot.sel .slot-cnt{color:var(--navy);}
+.slot.partial .slot-time{color:var(--amber);}
+.dur-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.dur-btn{padding:7px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);font-size:12px;font-weight:700;color:var(--t2);cursor:pointer;transition:.12s;}
+.dur-btn.sel{background:var(--navy);border-color:var(--navy);color:#fff;}
+.mon-row{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--border2);}
+.mon-row:last-child{border-bottom:none;}
+.mon-av{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;}
+.mon-timer{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--navy);margin-left:auto;flex-shrink:0;}
+.mon-timer.late{color:var(--red);}
+</style>
+</head>
+<body>
+<div id="kib-topbar"></div>
+<div id="kib-app">
+  <div id="user-strip-wrap"></div>
+  <div class="page-content">
+
+    <div class="bal-card">
+      <div style="position:relative;z-index:1;">
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Daily Break Balance</div>
+        <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:3px;">
+          <div class="bal-num" id="bal-rem">—</div>
+          <div class="bal-unit">min remaining</div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,.4);" id="bal-sub">Loading…</div>
+        <div class="bal-bar"><div class="bal-fill" id="bal-fill" style="width:0%;"></div></div>
+      </div>
+    </div>
+
+    <div class="break-live" id="live-banner">
+      <!-- Dynamically populated by renderBookedBanner() or startLiveBanner() -->
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-item active" id="tab-book"    onclick="switchTab('book')">☕ Book Break</button>
+      <button class="tab-item"        id="tab-swaps"   onclick="switchTab('swaps')">🔄 Swaps <span id="swap-badge" style="display:none;background:#EF4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:900;margin-left:2px;"></span></button>
+      <button class="tab-item"        id="tab-team"    onclick="switchTab('team')">👥 Team</button>
+      <button class="tab-item"        id="tab-history" onclick="switchTab('history')">🕓 History</button>
+    </div>
+
+    <div id="pane-book">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Select Break Slot</div>
+          <span class="text-sm text-muted" id="date-lbl"></span>
+        </div>
+        <div class="card-body">
+          <div id="slot-loading" style="text-align:center;padding:16px;color:var(--t3);"><div class="kib-spin" style="margin:0 auto 8px;"></div>Loading slots…</div>
+          <div class="slot-grid" id="slot-grid" style="display:none;"></div>
+          <div class="sec-hdr">Duration</div>
+          <div class="dur-row">
+            <button class="dur-btn sel" onclick="selDurFn(15,this)">15 min</button>
+            <button class="dur-btn"     onclick="selDurFn(30,this)">30 min</button>
+            <button class="dur-btn"     onclick="selDurFn(45,this)">45 min</button>
+            <button class="dur-btn"     onclick="selDurFn(60,this)">60 min</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:var(--r);border:1px solid var(--border);">
+            <input type="checkbox" id="vm-cb" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;">
+            <label for="vm-cb" style="font-size:13px;font-weight:600;color:var(--t1);cursor:pointer;">📞 Handle voicemail during break</label>
+          </div>
+          <button class="btn btn-navy btn-block" id="book-btn" onclick="bookBreak()" disabled>Book Break</button>
+          <div class="info-box amber" id="bal-warn" style="display:none;margin-top:10px;"></div>
+        </div>
+      </div>
+      <div id="swap-sec" style="display:none;">
+        <div class="sec-hdr">Swap Break</div>
+        <div class="card"><div class="card-body">
+          <div class="form-group"><label class="fld-label">Swap with colleague</label><select class="fld" id="swap-coll"><option value="">— Select —</option></select></div>
+          <button class="btn btn-teal btn-block" onclick="swapBreak()">🔄 Request Swap</button>
+        </div></div>
+      </div>
+    </div>
+
+
+    <!-- ══ SWAPS PANE ══ -->
+    <div id="pane-swaps" style="display:none;">
+      <div id="pending-swaps-list">
+        <div style="text-align:center;padding:24px;color:var(--t2);font-size:13px;">Loading swaps...</div>
+      </div>
+    </div>
+
+    <div id="pane-team" style="display:none;">
+      <div class="stat-grid">
+        <div class="stat-card c-amber"><div class="stat-num" id="t-live">0</div><div class="stat-label">On Break</div></div>
+        <div class="stat-card c-navy"><div class="stat-num" id="t-total">0</div><div class="stat-label">Today Total</div></div>
+        <div class="stat-card c-green"><div class="stat-num" id="t-free">0</div><div class="stat-label">Free Slots</div></div>
+        <div class="stat-card c-teal"><div class="stat-num" id="t-min">0</div><div class="stat-label">Team Min Left</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Currently On Break</div><button class="btn btn-xs btn-outline" onclick="dlCSV()">⬇ Export</button></div>
+        <div id="live-list"></div>
+      </div>
+      <div class="card" style="margin-top:8px;">
+        <div class="card-header"><div class="card-title">All Breaks Today</div></div>
+        <div id="all-today"></div>
+      </div>
+    </div>
+
+    <div id="pane-history" style="display:none;">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Break History</div><span id="hist-cnt" class="text-sm text-muted"></span></div>
+        <div id="hist-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="kib-bottomnav"></div>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/nav.js"></script>
+<script>/* v20260414-2135 */
+if(!Auth.guard())throw 0;
+const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
+let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
+Nav.init('breaks');
+document.getElementById('user-strip-wrap').innerHTML=Nav.renderUserStrip();
+document.getElementById('date-lbl').textContent=U.fmtDisplay(today);
+
+function buildSlotGrid(){
+  const myAgent=(data?.agents||[]).find(a=>a.n===user.name||a.name===user.name);
+  const todayIdx=(data?.dates||[]).indexOf(today);
+  const shiftRaw=myAgent&&todayIdx>=0&&myAgent.sch?myAgent.sch[todayIdx]:'';
+  const tm=shiftRaw.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  let startMin=U.toMin('08:00')+90,endMin=U.toMin('16:00')-30;
+  if(tm){startMin=U.toMin(tm[1])+90;endMin=U.toMin(tm[2])-30;}
+  if(endMin<=startMin)endMin+=1440;
+  const slots=[],nowMin=U.toMin(U.nowHHMM()),all=allBreaksToday();
+  for(let m=startMin;m<=endMin;m+=15)slots.push(U.fromMin(m));
+  document.getElementById('slot-loading').style.display='none';
+  const grid=document.getElementById('slot-grid');grid.style.display='';
+  if(!slots.length){grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--t3);">No slots available for your shift</div>`;return;}
+  grid.innerHTML=slots.map(t=>{
+    const inSlot=all.filter(b=>(b.breakStart||b['Break Start']||'').slice(0,5)===t.slice(0,5));
+    const mine=inSlot.find(b=>b.agent===user.name||b.Agent===user.name);
+    const cnt=inSlot.length;
+    const isVoice=(user.role||'').toLowerCase().includes('voice')||(user.dept||user.department||'').toLowerCase().includes('voice');
+    const myLimit=isVoice?MAX_CON+1:MAX_CON;
+    const full=cnt>=myLimit&&!mine;
+    const slotMin=U.toMin(t),passed=(slotMin%1440)<(nowMin%1440)-5&&!mine;
+    let cls='',cntText=`${cnt}/${isVoice?MAX_CON+1:MAX_CON}`;
+    if(mine){cls='mine';cntText='✓ Mine';}
+    else if(full){cls='full';cntText='Full';}
+    else if(passed){cls='blocked';cntText='Passed';}
+    else if(cnt>0)cls='partial';
+    const clickable=!mine&&!full&&!passed;
+    return `<div class="slot ${cls}" id="s-${t.replace(':','-')}" onclick="${clickable?`pickSlot('${t}',this)`:''}" >
+      <div class="slot-time">${U.fmt12(t)}</div><div class="slot-cnt">${cntText}</div></div>`;
+  }).join('');
+}
+
+function renderTeam(){
+  const all=allBreaksToday(),active=all.filter(b=>(b.status||b.Status||'').toLowerCase()==='active');
+  const nowMin=U.toMin(U.nowHHMM());
+  U.se('t-live',active.length);U.se('t-total',all.length);
+  let free=0;
+  for(let m=nowMin;m<=nowMin+30;m+=15){
+    const t=U.fromMin(m).slice(0,5);
+    const cnt=all.filter(b=>(b.breakStart||b['Break Start']||'').slice(0,5)===t).length;
+    if(cnt<MAX_CON)free++;
+  }
+  U.se('t-free',free);
+  const agents=(data?.agents||[]).filter(a=>a.t!=='Management');
+  let teamMin=0;
+  agents.forEach(a=>{
+    const name=a.n||a.name;
+    const used=all.filter(b=>(b.agent||b.Agent)===name).reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
+    teamMin+=Math.max(0,DAILY_MIN-used);
+  });
+  U.se('t-min',teamMin);
+
+  const liveEl=document.getElementById('live-list');
+  if(!active.length){
+    liveEl.innerHTML=`<div class="card-body"><div class="empty-state" style="padding:16px;"><div class="empty-icon">☕</div><div class="empty-msg">No one on break</div></div></div>`;
+  }else{
+    liveEl.innerHTML=active.map(b=>{
+      const name=b.agent||b.Agent||'—',color=U.avatarColor(name);
+      const bId='mt-'+(b.id||b.ID||Math.random().toString(36).slice(2));
+      const startTs=b.startedAt||b['Booked At']?new Date(b.startedAt||b['Booked At']).getTime():Date.now();
+      const dur=parseInt(b.duration||b.Duration||15);
+      return `<div class="mon-row">
+        <div class="mon-av" style="background:${color};">${U.initials(name)}</div>
+        <div class="flex-1"><div class="row-title">${name}</div>
+        <div class="row-meta">${U.fmt12((b.breakStart||b['Break Start']||'').slice(0,5))} · ${dur} min${b.voicemailOverride?' · 📞':''}</div></div>
+        <div class="mon-timer" id="${bId}">—</div>
+        ${isMgmt?`<button class="btn btn-xs btn-red" style="margin-left:8px;" onclick="mgmtEnd('${b.id||b.ID}','${name}')">End</button>`:''}
+      </div>`;
+    }).join('');
+    active.forEach(b=>{
+      const bId='mt-'+(b.id||b.ID||'');
+      const startTs=b.startedAt||b['Booked At']?new Date(b.startedAt||b['Booked At']).getTime():Date.now();
+      const dur=parseInt(b.duration||b.Duration||15);
+      setInterval(()=>{
+        const el=document.getElementById(bId);if(!el)return;
+        const e=Math.floor((Date.now()-startTs)/1000);
+        el.textContent=U.pad(Math.floor(e/60))+':'+U.pad(e%60);
+        el.classList.toggle('late',e>dur*60);
+      },1000);
+    });
+  }
+
+  const sP=s=>{s=(s||'').toLowerCase();return s==='active'?'pill-teal':s==='done'?'pill-gray':s==='cancelled'?'pill-red':'pill-amber';};
+  const todayEl=document.getElementById('all-today');
+  if(!all.length){
+    todayEl.innerHTML=`<div class="card-body"><div class="empty-state" style="padding:16px;"><div class="empty-icon">📋</div><div class="empty-msg">No breaks today</div></div></div>`;
+  }else{
+    todayEl.innerHTML=[...all].sort((a,b)=>U.toMin((a.breakStart||a['Break Start']||'00:00').slice(0,5))-U.toMin((b.breakStart||b['Break Start']||'00:00').slice(0,5)))
+      .map(b=>`<div class="row-item" style="padding:9px 13px;">
+        <div class="row-icon" style="background:var(--bg);">☕</div>
+        <div class="row-info"><div class="row-title">${b.agent||b.Agent} · ${U.fmt12((b.breakStart||b['Break Start']||'').slice(0,5))}</div>
+        <div class="row-meta">${b.duration||b.Duration} min · ${U.normDate(b.date||b.Date||today)}</div></div>
+        <span class="pill ${sP(b.status||b.Status)}">${b.status||b.Status||'—'}</span>
+      </div>`).join('');
+  }
+}
+
+async function mgmtEnd(id,name){
+  if(!confirm(`End ${name}'s break?`))return;
+  try{await API.saveBreaks({action:'endBreak',id,agent:name});const freshBreaks=await API.refreshBreaks(); if(freshBreaks)data.breakLog=freshBreaks;
+    Nav.setSyncStatus(true);renderTeam();U.toast(`${name}'s break ended ✓`,'ok');}
+  catch(e){U.toast('Failed','err');}
+}
+
+function renderHistory(){
+  const bl=(data?.breakLog||[]).filter(b=>isMgmt||(b.agent||b.Agent)===user.name)
+    .sort((a,b)=>new Date(b['Booked At']||b.startedAt||0)-new Date(a['Booked At']||a.startedAt||0)).slice(0,60);
+  U.se('hist-cnt',`${bl.length} records`);
+  const sP=s=>{s=(s||'').toLowerCase();return s==='active'?'pill-teal':s==='done'?'pill-gray':s==='cancelled'?'pill-red':'pill-amber';};
+  if(!bl.length){document.getElementById('hist-list').innerHTML=`<div class="card-body"><div class="empty-state"><div class="empty-icon">🕓</div><div class="empty-msg">No break history</div></div></div>`;return;}
+  document.getElementById('hist-list').innerHTML=bl.map(b=>{
+    const name=b.agent||b.Agent||'—',date=U.normDate(b.date||b.Date||''),slot=U.fmt12((b.breakStart||b['Break Start']||'').slice(0,5));
+    const dur=b.duration||b.Duration||'—',st=(b.status||b.Status||'').toLowerCase();
+    return `<div class="row-item" style="padding:9px 13px;">
+      <div class="row-icon" style="background:var(--bg);font-size:15px;">☕</div>
+      <div class="row-info"><div class="row-title">${isMgmt?name+' · ':''}${date} · ${slot}</div>
+      <div class="row-meta">${dur} min${b.voicemailOverride?' · 📞 Voicemail':''}</div></div>
+      <span class="pill ${sP(st)}">${st||'—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function pickSlot(t,el){
+  document.querySelectorAll('.slot.sel').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');selSlot=t;
+  if(!activeBreak)document.getElementById('book-btn').disabled=false;
+  checkBalWarn();
+}
+
+function selDurFn(val, el) {
+  selDurVal = val;
+  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+  // Warn if remaining balance is less than selected duration
+  const used = myBreaksToday().reduce((s,b) => s+(parseInt(b.duration||b.Duration)||0), 0);
+  const rem  = DAILY_MIN - used;
+  if (val > rem) {
+    U.toast(`Only ${rem} min remaining today`, 'warn');
+  }
+}
+
+
+
+async function bookBreak(){
+  if(!selSlot) return U.toast('Select a time slot','warn');
+  if(activeBreak) return U.toast('You have an active break','warn');
+
+  const used = myBreaksToday().reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
+  if(used+selDurVal>DAILY_MIN) return U.toast(`Only ${DAILY_MIN-used} min remaining`,'warn');
+
+  // Max 2 pending breaks
+  const pending = (data?.breakLog||[]).filter(b=>
+    b.agent===user.name && U.normDate(b.date||b['Date'])===today &&
+    (b.status==='booked'||b.status==='active')
+  ).length;
+  if(pending>=2) return U.toast('Max 2 breaks queued — complete one first','warn');
+
+  // Voicemail/capacity check
+  const _vmChecked = document.getElementById('vm-cb')?.checked;
+  const _slotLog = (data?.breakLog||[]).filter(b=>
+    U.normDate(b.date||b['Date'])===today &&
+    (b.status==='booked'||b.status==='active') &&
+    String(b.breakStart||b['Break Start']||'').slice(0,5)===selSlot
+  );
+  const _regNow = _slotLog.filter(b=>!b.voicemailOverride).length;
+  const _vmNow  = _slotLog.filter(b=> b.voicemailOverride).length;
+  if(_vmChecked && _vmNow>=1) return U.toast('Voicemail slot already taken','warn');
+  if(!_vmChecked && _regNow>=MAX_CON) return U.toast('Slot full — max '+MAX_CON+' breaks','warn');
+
+  const btn = document.getElementById('book-btn');
+  btn.disabled=true; btn.textContent='Booking…';
+
+  const bk = {
+    id: U.uid(), agent: user.name, Agent: user.name,
+    date: today, Date: today,
+    breakStart: selSlot, 'Break Start': selSlot,
+    duration: selDurVal, Duration: selDurVal,
+    status: 'booked', Status: 'booked',
+    startedAt: '', 'Booked At': new Date().toISOString(),
+    voicemailOverride: _vmChecked, dept: user.dept||''
+  };
+  try{
+    await API.saveBreaks({action:'saveBreak', break:bk, ...bk});
+    if(!data.breakLog) data.breakLog=[];
+    data.breakLog.push(bk);
+    bookedBreak=bk;
+    renderBookedBanner();
+    renderBalance(); buildSlotGrid();
+    btn.disabled=false; btn.textContent='Book Break';
+    U.toast('Break booked ✓ — tap Start when ready','ok');
+  }catch(e){
+    U.toast('Failed to book break','err');
+    btn.disabled=false; btn.textContent='Book Break';
+  }
+}
+
+
+async function endBreak(){
+  if(!activeBreak)return;
+  if(!confirm('End your break now?'))return;
+  try{
+    await API.saveBreaks({action:'endBreak',id:activeBreak.id,agent:user.name});
+    activeBreak=null;if(timerInt)clearInterval(timerInt);
+    document.getElementById('live-banner').classList.remove('show');
+    document.getElementById('swap-sec').style.display='none';
+    document.getElementById('book-btn').disabled=false;
+    document.getElementById('book-btn').textContent='Book Break';
+    const freshBreaks=await API.refreshBreaks(); if(freshBreaks)data.breakLog=freshBreaks;
+    Nav.setSyncStatus(true);renderBalance();buildSlotGrid();
+    U.toast('Break ended ✓','ok');
+  }catch(e){U.toast('Failed to end break','err');}
+}
+
+function fillSwapColleagues(){
+  const sel=document.getElementById('swap-coll');
+  (data?.agents||[]).filter(a=>(a.n||a.name)!==user.name).sort((a,b)=>(a.n||a.name).localeCompare(b.n||b.name))
+    .forEach(a=>{const o=document.createElement('option');o.value=a.n||a.name;o.textContent=`${a.n||a.name} (${a.t||''})`;sel.appendChild(o);});
+}
+
+
+
+
+async function cancelBookedBreak(breakId) {
+  if (!confirm('Cancel this break?')) return;
+  const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
+  if (!bk) return;
+  bk.status = 'cancelled';
+  renderBookedBanner();
+  renderBalance();
+  buildSlotGrid();
+  try {
+    await API.saveBreaks({ action: 'cancelBreak', id: breakId, agent: user.name });
+    // cache preserved - breaks use refreshBreaks()
+    API.clearCache('getAll'); // will refresh on next load
+    renderBalance(); buildSlotGrid(); renderBookedBanner();
+    U.toast('Break cancelled', 'ok');
+  } catch(e) {
+    bk.status = 'booked';
+    renderBookedBanner();
+    U.toast('Failed to cancel', 'err');
+  }
+}
+
+/* ── Swap Break (from booked state) ──────────────────── */
+function showSwapForBreak(breakId) {
+  const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
+  if (!bk) return;
+
+  // Build swap modal
+  const slot = (bk.breakStart||bk['Break Start']||'');
+  const slotDisp = U.fmt12 ? U.fmt12(slot.slice(0,5)) : slot;
+  // Colleagues with booked breaks only — will be filled by fillSwapColleagues()
+
+  const opts = colleagues.map(a =>
+    `<option value="${a.n||a.name}">${a.n||a.name} (${a.t||a.team||''})</option>`
+  ).join('');
+
+  // Show inline swap UI in the banner
+  const banner = document.getElementById('live-banner');
+  banner.innerHTML = `
+    <div style="width:100%;">
+      <div style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px;">
+        Swap Break · ${slotDisp} ↔
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="swap-inline-coll" style="flex:1;padding:9px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,.2);
+          background:rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:600;">
+          <option value="">— Select colleague —</option>
+          ${opts}
+        </select>
+        <button onclick="submitSwapForBreak('${breakId}')"
+          style="padding:9px 14px;border-radius:10px;border:none;background:#00BEAE;
+                 color:#fff;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">
+          Send ✓
+        </button>
+        <button onclick="renderBookedBanner()"
+          style="padding:9px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,.2);
+                 background:transparent;color:rgba(255,255,255,.6);font-size:13px;cursor:pointer;">
+          ✕
+        </button>
+      </div>
+    </div>`;
+}
+
+async function submitSwapForBreak(breakId) {
+  const coll = document.getElementById('swap-inline-coll')?.value;
+  if (!coll) return U.toast('Select a colleague', 'warn');
+  const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
+  if (!bk) return;
+  const slot = bk.breakStart||bk['Break Start']||'';
+  try {
+    await API.submitSwap({
+      from:      user.name,
+      to:        coll,
+      date:      today,
+      shiftFrom: slot,
+      shiftTo:   '',
+      reason:    'Break swap request'
+    });
+    U.toast('Swap request sent to ' + coll + ' ✓', 'ok');
+    renderBookedBanner();
+  } catch(e) {
+    U.toast('Failed to send swap', 'err');
+  }
+}
+
+function renderBookedBanner() {
+  // Get next upcoming booked break (earliest by breakStart time)
+  const booked = getBreaks(today, user.name)
+    .filter(b => (b.status||b.Status||'').toLowerCase() === 'booked')
+    .sort((a,b) => (a.breakStart||a['Break Start']||'').localeCompare(b.breakStart||b['Break Start']||''));
+
+  const banner = document.getElementById('live-banner');
+
+  // If agent is on active break, don't show booked banner
+  if (activeBreak) { return; }
+
+  if (!booked.length) {
+    banner.classList.remove('show');
+    banner.innerHTML = '';
+    return;
+  }
+
+  const next      = booked[0];  // earliest upcoming
+  const remaining = booked.length - 1;
+  const slotDisp  = U.fmt12 ? U.fmt12((next.breakStart||next['Break Start']||'').slice(0,5)) : (next.breakStart||next['Break Start']||'');
+
+  banner.classList.add('show');
+  banner.innerHTML = `
+    <div style="flex:1;">
+      <div style="font-size:10px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">
+        Next Break${remaining > 0 ? ' · ' + remaining + ' more after' : ''}
+      </div>
+      <div style="font-size:15px;font-weight:800;color:#fff;">
+        ${next.duration||next.Duration||15} min · ${slotDisp}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="startBookedBreak('${next.id||next.ID}')"
+        style="padding:10px 16px;border-radius:10px;border:2px solid rgba(0,190,174,.6);
+               background:rgba(0,190,174,.2);color:#00BEAE;font-size:13px;font-weight:800;
+               cursor:pointer;-webkit-tap-highlight-color:transparent;">
+        ▶ Start
+      </button>
+      <button onclick="showSwapForBreak('${next.id||next.ID}')"
+        style="padding:10px 12px;border-radius:10px;border:2px solid rgba(255,255,255,.2);
+               background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);font-size:13px;font-weight:700;
+               cursor:pointer;-webkit-tap-highlight-color:transparent;" title="Swap break">
+        🔄
+      </button>
+      <button onclick="cancelBookedBreak('${next.id||next.ID}')"
+        style="padding:10px 12px;border-radius:10px;border:2px solid rgba(255,100,100,.3);
+               background:rgba(255,100,100,.1);color:rgba(255,150,150,.9);font-size:13px;font-weight:700;
+               cursor:pointer;-webkit-tap-highlight-color:transparent;" title="Cancel break">
+        ✕
+      </button>
+    </div>`;
+}
+
+
+async function startBookedBreak(breakId) {
+  // Find the specific booked break by ID
+  const bk = breakId
+    ? getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId && (b.status||b.Status||'').toLowerCase() === 'booked')
+    : bookedBreak;
+  if (!bk) return U.toast('Break not found', 'err');
+  try {
+    bk.status    = 'active';
+    bk.startedAt = new Date().toISOString();
+    await API.saveBreaks({ action: 'startBreak', break: bk, ...bk, agent: bk.agent });
+    activeBreak  = bk;
+    bookedBreak  = null;
+    startLiveBanner(bk);
+    API.clearCache('getAll'); // will refresh on next load
+    Nav.setSyncStatus(true); renderBalance(); buildSlotGrid(); renderBookedBanner();
+    U.toast('Break started ✓', 'ok');
+  } catch(e) {
+    U.toast('Failed to start break', 'err');
+  }
+}
+
+async function init(){
+  try{
+    data=await API.getAll();
+    Nav.setSyncStatus(true);
+    const s=data?.settings||{};
+    DAILY_MIN=parseInt(s.dailyMin||s.daily_min||60);
+    MAX_CON=parseInt(s.maxCon||s.max_con||2);
+    renderBalance();detectActiveBreak();buildSlotGrid();fillSwapColleagues();renderSwapRequests();
+  }catch(e){
+    console.error('Breaks load error:', e);
+    if (!window._breaksRetried) {
+      window._breaksRetried = true;
+      U.toast('Reconnecting…','');
+      setTimeout(() => { window._breaksRetried = false; init(true); }, 4000);
+    } else {
+      U.toast('Failed to load — tap retry','err');
+    }
+  }
+}
+
+function switchTab(t){
+  ['book','swaps','team','history'].forEach(id=>{
+    document.getElementById('pane-'+id).style.display=id===t?'':'none';
+    const b=document.getElementById('tab-'+id);if(b)b.classList.toggle('active',id===t);
+  });
+  if(t==='swaps')renderSwapRequests();
+  if(t==='team')renderTeam();
+  if(t==='history')renderHistory();
+}
+
+function getBreaks(dateF,agentF){
+  return(data?.breakLog||[]).filter(b=>{
+    const d=U.normDate(b.date||b.Date||''),a=b.agent||b.Agent||'',s=(b.status||b.Status||'').toLowerCase();
+    if(s==='cancelled')return false;
+    if(dateF&&d!==dateF)return false;
+    if(agentF&&a!==agentF)return false;
+    return true;
+  });
+}
+function myBreaksToday(){return getBreaks(today,user.name);}
+function allBreaksToday(){return getBreaks(today,null);}
+
+function renderBalance(){
+  const myB=myBreaksToday(),used=myB.reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
+  const rem=Math.max(0,DAILY_MIN-used),pct=Math.min(100,Math.round(used/DAILY_MIN*100));
+  U.se('bal-rem',rem);U.se('bal-sub',`${used} of ${DAILY_MIN} minutes used today`);
+  document.getElementById('bal-fill').style.width=pct+'%';
+}
+
+function detectActiveBreak(){
+  const myBreaks = getBreaks(today, user.name);
+  const ab = myBreaks.find(b => (b.status||b.Status||'').toLowerCase() === 'active');
+  if (ab) {
+    activeBreak = ab;
+    startLiveBanner(ab);
+  } else {
+    // No active break — show next booked break banner
+    renderBookedBanner();
+  }
+}
+
+function startLiveBanner(b){
+  const banner = document.getElementById('live-banner');
+  const startTs = b.startedAt ? new Date(b.startedAt).getTime() : Date.now();
+  const durMs   = parseInt(b.duration||b.Duration||15) * 60000;
+  const slotDisp= U.fmt12 ? U.fmt12((b.breakStart||b['Break Start']||'').slice(0,5)) : (b.breakStart||'');
+  const dueDisp = U.fmt12(U.fromMin(Math.floor((startTs+durMs)/60000)%1440));
+
+  banner.innerHTML = `
+    <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px;">Break In Progress</div>
+    <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:6px;">${b.duration||b.Duration||15} min · ${slotDisp}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="bl-timer" id="live-timer">00:00</div>
+      <div style="text-align:right;font-size:10px;color:rgba(255,255,255,.4);">Due: ${dueDisp}</div>
+    </div>
+    <div class="bl-prog-wrap"><div class="bl-prog" id="live-prog" style="width:0%;"></div></div>
+    <button class="btn btn-block" style="margin-top:10px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);color:#fff;" onclick="endBreak()">End Break Now</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+      <select id="swap-coll" style="flex:1;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:12px;font-weight:600;">
+        <option value="">🔄 Swap with colleague...</option>
+      </select>
+      <button onclick="swapBreak()" style="padding:8px 14px;border-radius:10px;border:none;background:rgba(0,190,174,.3);color:#00BEAE;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">Send</button>
+    </div>`;
+
+  banner.classList.add('show');
+  fillSwapColleagues(b.id||b.ID);
+  document.getElementById('book-btn').disabled=true;
+  document.getElementById('book-btn').textContent='Break In Progress';
+
+  if(timerInt) clearInterval(timerInt);
+  timerInt = setInterval(() => {
+    const el = document.getElementById('live-timer');
+    if (!el) { clearInterval(timerInt); return; }
+    const elapsed = Math.floor((Date.now()-startTs)/1000);
+    const m = Math.floor(elapsed/60), s = elapsed%60;
+    el.textContent = U.pad(m)+':'+U.pad(s);
+    const prog = document.getElementById('live-prog');
+    if (prog) prog.style.width = Math.min(100,(elapsed*1000/durMs)*100)+'%';
+    if (elapsed > durMs/1000) el.style.color='#FCA5A5';
+  }, 1000);
+}
+
+function renderSwapRequests() {
+  const container = document.getElementById('pending-swaps-list');
+  if (!container) return;
+
+  // Swaps where I am the target (Agent B) and status is pending
+  const incoming = (data?.swaps||[]).filter(s =>
+    s.to === user.name &&
+    (s.status||'').toLowerCase().includes('pending')
+  );
+
+  // Swaps I sent
+  const outgoing = (data?.swaps||[]).filter(s =>
+    s.from === user.name
+  ).slice(-5);
+
+  // Update badge
+  const badge = document.getElementById('swap-badge');
+  if (badge) {
+    badge.textContent = incoming.length;
+    badge.style.display = incoming.length ? '' : 'none';
+  }
+
+  if (!incoming.length && !outgoing.length) {
+    container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t2);font-size:13px;">No swap requests</div>';
+    return;
+  }
+
+  let html = '';
+
+  if (incoming.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 8px;">Incoming Requests</div>`;
+    incoming.forEach(s => {
+      const mySlot    = U.fmt12 ? U.fmt12((s.toSlot||s.shiftTo||'').slice(0,5))   : s.toSlot||'?';
+      const theirSlot = U.fmt12 ? U.fmt12((s.fromSlot||s.shiftFrom||'').slice(0,5)) : s.fromSlot||'?';
+      html += `
+        <div style="background:#F0F7FF;border:1.5px solid #BFDBFE;border-radius:14px;padding:14px;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:4px;">
+            ${s.from} wants to swap
+          </div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:10px;">
+            Their slot: <b>${theirSlot}</b> ↔ Your slot: <b>${mySlot}</b>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',true)"
+              style="flex:1;padding:9px;border-radius:10px;border:none;background:#0A4A8A;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">
+              ✓ Accept
+            </button>
+            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',false)"
+              style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #E5E7EB;background:#fff;color:#EF4444;font-size:13px;font-weight:800;cursor:pointer;">
+              ✕ Reject
+            </button>
+          </div>
+        </div>`;
+    });
+  }
+
+  if (outgoing.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;padding:8px 0 8px;">Sent Requests</div>`;
+    outgoing.reverse().forEach(s => {
+      const mySlot    = U.fmt12 ? U.fmt12((s.fromSlot||s.shiftFrom||'').slice(0,5)) : s.fromSlot||'?';
+      const theirSlot = U.fmt12 ? U.fmt12((s.toSlot||s.shiftTo||'').slice(0,5))     : s.toSlot||'?';
+      const statusColor = s.status==='approved'?'#16A34A':s.status==='rejected'?'#DC2626':'#B45309';
+      html += `
+        <div style="background:#F8FAFF;border:1px solid #E5E7EB;border-radius:12px;padding:12px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:12px;font-weight:700;color:var(--t1);">
+              To ${s.to}: ${mySlot} ↔ ${theirSlot}
+            </div>
+            <span style="font-size:10px;font-weight:700;color:${statusColor};text-transform:uppercase;">${s.status||'pending'}</span>
+          </div>
+        </div>`;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, accepted) {
+  try {
+    if (accepted) {
+      // Swap the break times in BreakLog
+      await fetch(CFG.N8N.RESPOND_SWAP, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ accepted: 'true', swapId, fromBreakId, toBreakId, fromSlot, toSlot, respondedBy: user.name })
+      });
+      U.toast('Swap accepted — times exchanged ✓', 'ok');
+    } else {
+      await fetch(CFG.N8N.RESPOND_SWAP, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ accepted: 'false', swapId, respondedBy: user.name })
+      });
+      U.toast('Swap rejected', 'ok');
+    }
+    // cache preserved - breaks use refreshBreaks()
+    API.clearCache('getAll'); // will refresh on next load
+    renderBalance(); buildSlotGrid(); renderBookedBanner(); renderSwapRequests();
+  } catch(e) {
+    U.toast('Failed to respond to swap', 'err');
+  }
+}
+
+
+async function swapBreak() {
+  const sel = document.getElementById('swap-coll');
+  if (!sel || !sel.value) return U.toast('Select a colleague to swap with', 'warn');
+
+  let target;
+  try { target = JSON.parse(sel.value); } catch(e) { return U.toast('Invalid selection', 'err'); }
+
+  // My current break (active or the one being swapped from booked banner)
+  const myBreak = activeBreak ||
+    getBreaks(today, user.name).find(b => (b.status||b.Status||'').toLowerCase() === 'booked');
+  if (!myBreak) return U.toast('No active break to swap', 'warn');
+
+  const mySlot     = (myBreak.breakStart||myBreak['Break Start']||'').slice(0,5);
+  const mySlotDisp = U.fmt12 ? U.fmt12(mySlot) : mySlot;
+  const theirSlotDisp = U.fmt12 ? U.fmt12(target.slot) : target.slot;
+
+  if (!confirm(`Swap your ${mySlotDisp} break with ${target.agent}'s ${theirSlotDisp} break?`)) return;
+
+  try {
+    // Submit swap request — agent B needs to accept
+    await API.saveBreaks({
+      action:       'saveBreak',
+      break: {
+        id:          'SWAP-' + Date.now(),
+        agent:       user.name,
+        breakStart:  myBreak.breakStart||myBreak['Break Start'],
+        duration:    myBreak.duration||myBreak.Duration||15,
+        status:      'booked',
+        date:        today,
+        dept:        user.dept||''
+      }
+    });
+
+    await API.submitSwap({
+      from:      user.name,
+      fromBreakId: myBreak.id||myBreak.ID,
+      fromSlot:  mySlot,
+      to:        target.agent,
+      toBreakId: target.breakId,
+      toSlot:    target.slot,
+      date:      today,
+      reason:    `Break time swap: ${mySlotDisp} ↔ ${theirSlotDisp}`
+    });
+
+    // Send notification to target agent
+    await API.saveBreaks({ action: 'cancelBreak', id: myBreak.id||myBreak.ID });
+
+    U.toast(`Swap request sent to ${target.agent} ✓`, 'ok');
+    // cache preserved - breaks use refreshBreaks()
+    API.clearCache('getAll'); // will refresh on next load
+    renderBalance(); buildSlotGrid(); renderBookedBanner();
+
+  } catch(e) {
+    console.error('Swap error:', e);
+    U.toast('Failed to send swap request', 'err');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

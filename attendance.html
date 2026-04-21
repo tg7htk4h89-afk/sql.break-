@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0A4A8A">
+<title>KIB WFM — Attendance</title>
+<link rel="stylesheet" href="css/kib.css">
+<style>
+.att-chip { display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700; }
+.att-present { background:var(--green-bg); color:var(--green); }
+.att-absent  { background:var(--red-bg);   color:var(--red);   }
+.att-late    { background:var(--amber-bg);  color:var(--amber); }
+.att-leave   { background:rgba(124,58,237,.1); color:var(--purple); }
+.att-unknown { background:#FEF9EE; color:#B45309; border:1.5px dashed #FCD34D; font-weight:700; }
+
+.att-table-wrap { overflow-x:auto; }
+.att-row { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:10px 13px; border-bottom:1px solid var(--border2); }
+.att-row:last-child { border-bottom:none; }
+
+.mgmt-row { display:flex; align-items:center; gap:10px; padding:10px 13px; border-bottom:1px solid var(--border2); }
+.mgmt-row:last-child { border-bottom:none; }
+.mgmt-av { width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0; }
+</style>
+</head>
+<body>
+<div id="kib-topbar"></div>
+<div id="kib-app">
+  <div id="user-strip-wrap"></div>
+  <div class="page-content">
+    <div id="att-loading" style="text-align:center;padding:40px;color:var(--t2);">
+      <div class="kib-spin" style="margin:0 auto 12px;"></div>
+      Loading attendance data…
+    </div>
+
+    <!-- Date selector -->
+    <div class="tab-bar" style="margin-top:12px;">
+      <button class="tab-item active" id="tab-today" onclick="attTab('today')">📋 Today</button>
+      <button class="tab-item" id="tab-athist" onclick="attTab('athist')">🕓 History</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title" id="att-title">Attendance</div>
+        <input type="date" class="fld" id="att-date" style="width:auto;padding:6px 10px;font-size:16px;" onchange="onDateChange()">
+      </div>
+    </div>
+
+    <!-- Stats (management) -->
+    <div id="att-stats" style="display:none;">
+      <div class="stat-grid">
+        <div class="stat-card c-green"><div class="stat-num" id="s-present">—</div><div class="stat-label">Present</div></div>
+        <div class="stat-card c-amber"><div class="stat-num" id="s-late">—</div><div class="stat-label">Late</div></div>
+        <div class="stat-card c-red"><div class="stat-num" id="s-absent">—</div><div class="stat-label">Absent</div></div>
+        <div class="stat-card c-purple"><div class="stat-num" id="s-leave">—</div><div class="stat-label">Leave</div></div>
+      </div>
+    </div>
+
+    <!-- Agent self-check-in -->
+    <div id="agent-checkin" style="display:none;">
+      <div class="card">
+        <div class="card-header"><div class="card-title">My Attendance</div></div>
+        <div class="card-body">
+          <div id="my-att-status" class="info-box navy" style="margin-bottom:12px;">Checking status…</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="btn btn-green" onclick="logAttendance('on_time')">✓ On Time</button>
+            <button class="btn btn-amber" onclick="logAttendance('late')">⏰ Late</button>
+            <button class="btn btn-red"   onclick="logAttendance('noshow')">✕ Absent</button>
+            <button class="btn btn-outline" onclick="logAttendance('sick')">🏖 On Leave</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Management: full team view -->
+    <div id="mgmt-att-view" style="display:none;">
+      <!-- Team filter -->
+      <div class="tab-bar" id="att-team-tabs" style="margin-bottom:8px;"></div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title" id="att-table-title">Team Attendance</div>
+          <button class="btn btn-xs btn-outline" onclick="exportAtt()">⬇ Export</button>
+        </div>
+        <div id="att-agent-list">
+          <div class="card-body">
+            <div class="skel" style="height:48px;margin-bottom:6px;border-radius:8px;"></div>
+            <div class="skel" style="height:48px;margin-bottom:6px;border-radius:8px;"></div>
+            <div class="skel" style="height:48px;border-radius:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="kib-bottomnav"></div>
+
+<!-- Status edit modal trigger -->
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/nav.js"></script>
+<script>
+if (!Auth.guard()) throw 0;
+
+const user   = Auth.user();
+let allData  = null;
+let selDate  = U.today();
+let teamFilt = 'All';
+
+Nav.init('attendance');
+document.getElementById('user-strip-wrap').innerHTML = Nav.renderUserStrip();
+document.getElementById('att-date').value = selDate;
+document.getElementById('att-date').max   = U.today();
+
+const isMgmt = Auth.isManagement();
+
+async function init(force = false) {
+  try {
+    allData = await API.getAll();
+    const _ld = document.getElementById('att-loading'); if(_ld)_ld.style.display='none';
+    if (isMgmt) {
+      document.getElementById('att-stats').style.display = '';
+      document.getElementById('mgmt-att-view').style.display = '';
+      document.getElementById('att-loading').style.display='none';
+      buildTeamTabs();
+      try { renderMgmtView(); } catch(re){ console.error('renderMgmtView error:',re); }
+    } else {
+      document.getElementById('att-loading').style.display='none';
+      document.getElementById('agent-checkin').style.display = '';
+      renderAgentStatus();
+    }
+  } catch(e) {
+    Nav.setSyncStatus(false);
+    console.error('Attendance load error:', e);
+    if (!window._attRetried) {
+      window._attRetried = true;
+      U.toast('Reconnecting…','warn');
+      setTimeout(() => { window._attRetried = false; init(true); }, 3000);
+    } else {
+      U.toast('Failed to load — check n8n workflows','err');
+    }
+  }
+}
+
+function onDateChange() {
+  selDate = document.getElementById('att-date').value;
+  if (isMgmt) renderMgmtView();
+  else renderAgentStatus();
+}
+
+/* ── Agent self check-in ───────────────────────────── */
+function renderAgentStatus() {
+  const att = (allData?.attendance||[]).find(a => a.agent===user.name && U.normDate(a.date)===selDate);
+  const el  = document.getElementById('my-att-status');
+  if (att) {
+    const map = {on_time:'green',late:'amber',noshow:'red',sick:'red',permission:'navy',change:'navy'};
+    const cls = map[att.status] || 'navy';
+    el.className = `info-box ${cls}`;
+    el.innerHTML = `Status: <strong>${att.status?.toUpperCase()}</strong> · Logged at ${att.time||'—'}`;
+  } else {
+    el.className = 'info-box navy';
+    el.textContent = selDate === U.today() ? 'Not yet logged today — tap below to log' : 'No attendance record for this date';
+  }
+}
+
+async function logAttendance(status) {
+  try {
+    const rec = { agent:user.name, date:selDate, status, time:U.nowHHMM(), loggedBy:user.name, ts:new Date().toISOString() };
+    await API.saveAttendance([rec]);
+    allData = await API.getAll(true);
+    renderAgentStatus();
+    U.toast(`Logged as ${status} ✓`, 'ok');
+  } catch(e) {
+    Nav.setSyncStatus(false); U.toast('Failed to log attendance','err'); }
+}
+
+/* ── Management view ───────────────────────────────── */
+function buildTeamTabs() {
+  const teams = ['All', ...CFG.TEAMS.filter(t => (allData?.agents||[]).some(a => a.t===t))];
+  document.getElementById('att-team-tabs').innerHTML = teams.map(t =>
+    `<button class="tab-item ${t==='All'?'active':''}" onclick="setAttTeam('${t}',this)">${t}</button>`
+  ).join('');
+}
+
+function setAttTeam(t, el) {
+  teamFilt = t;
+  document.querySelectorAll('#att-team-tabs .tab-item').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderMgmtView();
+}
+
+function renderMgmtView() {
+  let agents = (allData?.agents||[]).filter(a => a.t !== 'Management');
+  if (teamFilt !== 'All') agents = agents.filter(a => a.t === teamFilt);
+  const att = (allData?.attendance||[]).filter(a => U.normDate(a.date) === selDate);
+
+  // Stats
+  let present=0, late=0, absent=0, leave=0;
+  const dateIdxStat = (allData?.dates||[]).map(d=>U.normDate(d)).indexOf(selDate);
+  agents.forEach(ag => {
+    const name  = ag.n||ag.name;
+    const rec   = att.find(a => a.agent===name);
+    const shift = dateIdxStat>=0&&ag.sch ? ag.sch[dateIdxStat] : '';
+    const isLv  = ['AL','SL','PH','UL','PL'].includes(shift);
+    if (rec) {
+      if (['present','on_time'].includes(rec.status))    present++;
+      else if (rec.status==='late')                      late++;
+      else if (['absent','noshow','sick'].includes(rec.status)) absent++;
+      else if (['permission','al','sl','ph'].includes(rec.status)||isLv) leave++;
+    } else if (isLv) leave++;
+  });
+  U.se('s-present', present);
+  U.se('s-late',    late);
+  U.se('s-absent',  absent);
+  U.se('s-leave',   leave);
+
+  document.getElementById('att-table-title').textContent = `${teamFilt === 'All' ? 'All Teams' : teamFilt} (${agents.length})`;
+
+  // Get date index for today's schedule
+  const dateIdx = (allData?.dates||[]).map(d=>U.normDate(d)).indexOf(selDate);
+
+  const html = agents.map(ag => {
+    const name  = ag.n||ag.name;
+    const color = U.avatarColor(name);
+    const rec   = att.find(a => a.agent===name);
+
+    // Read today's shift from schedule data
+    const agDates = (allData?.dates||[]).map(d=>U.normDate(d));
+    const agDateIdx = agDates.indexOf(selDate);
+    const todayShift = agDateIdx >= 0 && ag.sch ? (ag.sch[agDateIdx]||'') : '';
+    const isOff      = !todayShift || todayShift === 'OFF' ||
+                       ['AL','SL','PH','UL','PL'].includes(todayShift);
+    const isLeave    = ['AL','SL','PH','UL','PL'].includes(todayShift);
+
+    // Determine status: attendance record > schedule-derived > unknown
+    let status;
+    if (rec?.status)          status = rec.status;
+    else if (isLeave)         status = todayShift.toLowerCase(); // al/sl/ph
+    else if (isOff)           status = 'off';
+    else                      status = 'unknown'; // scheduled but not marked
+
+    const statusMap = {
+      on_time:'att-present', present:'att-present',
+      late:'att-late',
+      sick:'att-absent', absent:'att-absent', noshow:'att-absent',
+      permission:'att-leave', al:'att-leave', sl:'att-leave', ph:'att-leave', ul:'att-leave', pl:'att-leave',
+      off:'att-off',
+      unknown:'att-unknown'
+    };
+    const chipCls = statusMap[status] || 'att-unknown';
+    const label   = rec?.status
+      ? status.charAt(0).toUpperCase()+status.slice(1).replace('_',' ')
+      : isLeave ? todayShift
+      : isOff   ? 'OFF'
+      : 'Not Marked';
+    const shiftLbl = todayShift || '—';
+
+    return `<div class="mgmt-row">
+      <div class="mgmt-av" style="background:${color}">${U.initials(name)}</div>
+      <div class="flex-1">
+        <div class="row-title">${name}</div>
+        <div class="row-meta">${ag.t||'—'} · ${shiftLbl} ${rec?.time?'· '+rec.time:''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="att-chip ${chipCls}">${label}</span>
+        ${isMgmt&&!isOff?`<button class="btn btn-xs btn-outline" style="font-size:11px;padding:4px 10px;" onclick="editStatus('${name}','${status}')">Mark</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('att-agent-list').innerHTML = html || `<div class="card-body"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-msg">No agents in this team</div></div></div>`;
+}
+
+async function editStatus(agentName, currentStatus) {
+  const bodyHtml = `
+    <div class="form-group">
+      <label class="fld-label">Agent</label>
+      <div style="font-weight:700;color:var(--navy)">${agentName}</div>
+    </div>
+    <div class="form-group">
+      <label class="fld-label">Status</label>
+      <select class="fld" id="modal-status" onchange="toggleModalFields()">
+        <option value="present"   ${currentStatus==='present'?'selected':''}>✓ Present</option>
+        <option value="late"      ${currentStatus==='late'?'selected':''}>⏰ Late</option>
+        <option value="absent"    ${currentStatus==='absent'?'selected':''}>✕ Absent</option>
+        <option value="permission"${currentStatus==='permission'?'selected':''}>🚪 Permission</option>
+        <option value="sick"      ${currentStatus==='sick'?'selected':''}>🏥 Sick Leave</option>
+        <option value="leave"     ${currentStatus==='leave'?'selected':''}>🏖 Annual Leave</option>
+        <option value="change"    ${currentStatus==='change'?'selected':''}>🔄 Change Shift</option>
+      </select>
+    </div>
+
+    <!-- Permission: From/To time -->
+    <div id="modal-perm-fields" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="form-group">
+          <label class="fld-label">From Time</label>
+          <input class="fld" type="time" id="modal-perm-from">
+        </div>
+        <div class="form-group">
+          <label class="fld-label">To Time</label>
+          <input class="fld" type="time" id="modal-perm-to">
+        </div>
+      </div>
+    </div>
+
+    <!-- Change Shift: shift list -->
+    <div id="modal-shift-fields" style="display:none;">
+      <div class="form-group">
+        <label class="fld-label">New Shift</label>
+        <select class="fld" id="modal-new-shift">
+          <option value="">— Select Shift —</option>
+          <option value='07:00-15:00'>07:00-15:00</option>
+<option value='08:00-14:00'>08:00-14:00</option>
+<option value='08:00-16:00'>08:00-16:00</option>
+<option value='08:00-17:00'>08:00-17:00</option>
+<option value='09:00-15:00'>09:00-15:00</option>
+<option value='09:00-17:00'>09:00-17:00</option>
+<option value='10:00-18:00'>10:00-18:00</option>
+<option value='12:00-20:00'>12:00-20:00</option>
+<option value='16:00-00:00'>16:00-00:00</option>
+<option value='19:00-03:00'>19:00-03:00</option>
+<option value='00:00-08:00'>00:00-08:00</option>
+          <option value="OFF">OFF — Day Off</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="fld-label">Note (optional)</label>
+      <input class="fld" type="text" id="modal-note" placeholder="Optional note">
+    </div>`;
+
+  U.modal('Mark Attendance', bodyHtml,
+    `<button class="btn btn-outline flex-1" onclick="U.closeModal()">Cancel</button>
+     <button class="btn btn-navy flex-1" onclick="saveEditStatus('${agentName}')">Save</button>`);
+
+  // Show correct fields for current status
+  setTimeout(() => toggleModalFields(), 50);
+}
+
+function toggleModalFields() {
+  const status = document.getElementById('modal-status')?.value;
+  const permFields  = document.getElementById('modal-perm-fields');
+  const shiftFields = document.getElementById('modal-shift-fields');
+  if (permFields)  permFields.style.display  = status === 'permission' ? '' : 'none';
+  if (shiftFields) shiftFields.style.display = status === 'change'     ? '' : 'none';
+}
+
+async function saveEditStatus(agentName) {
+  const status   = document.getElementById('modal-status').value;
+  const note     = document.getElementById('modal-note')?.value||'';
+  const permFrom = document.getElementById('modal-perm-from')?.value||'';
+  const permTo   = document.getElementById('modal-perm-to')?.value||'';
+  const newShift = document.getElementById('modal-new-shift')?.value||'';
+
+  const fullNote = status==='permission' && permFrom && permTo
+    ? `Permission ${permFrom}–${permTo}${note?' | '+note:''}`
+    : note;
+
+  try {
+    // Save attendance record
+    await API.saveAttendance([{
+      agent:agentName, date:selDate, status,
+      time:U.nowHHMM(), note:fullNote,
+      newShift: status==='change' ? newShift : '',
+      loggedBy:user.name, ts:new Date().toISOString()
+    }]);
+
+    // If sick, leave, or change shift → update Schedule sheet too
+    if (['sick','leave','change'].includes(status)) {
+      const schedShift = status==='sick'   ? 'SL'
+                       : status==='leave'  ? 'Leave'
+                       : newShift;
+      if (schedShift) {
+        await fetch(CFG.N8N.UPDATE_SHIFT, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            agent:     agentName,
+            date:      selDate,
+            shift:     schedShift,
+            reason:    fullNote || status,
+            updatedBy: user.name,
+            action:    'updateShift'
+          })
+        });
+      }
+    }
+
+    U.closeModal();
+    API.clearCache('getAll');
+    allData = await API.getAll(true);
+    renderMgmtView();
+    U.toast(`${agentName} → ${status} ✓`, 'ok');
+  } catch(e) {
+    Nav.setSyncStatus(false);
+    console.error('saveEditStatus error:', e);
+    U.toast('Failed to update','err');
+  }
+}
+
+function exportAtt() {
+  let agents = (allData?.agents||[]).filter(a => a.t!=='Management');
+  if (teamFilt !== 'All') agents = agents.filter(a => a.t===teamFilt);
+  const att = (allData?.attendance||[]).filter(a => U.normDate(a.date)===selDate);
+  const rows = [['Agent','Team','Date','Status','Time','Note']];
+  agents.forEach(ag => {
+    const name = ag.n||ag.name;
+    const rec  = att.find(a => a.agent===name)||{};
+    rows.push([name, ag.t, selDate, rec.status||'', rec.time||'', rec.note||'']);
+  });
+  U.downloadCSV(rows, `KIB_Attendance_${selDate}.csv`);
+}
+
+function attTab(tab) {
+  ['today','athist'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+  });
+  const mgmtView=document.getElementById('mgmt-att-view');
+  const agentView=document.getElementById('agent-checkin');
+  if(tab==='athist') {
+    if(mgmtView) mgmtView.style.display='none';
+    if(agentView) agentView.style.display='none';
+    renderAttHistory();
+  } else {
+    if(isMgmt&&mgmtView) mgmtView.style.display='';
+    if(!isMgmt&&agentView) agentView.style.display='';
+  }
+}
+
+function renderAttHistory() {
+  // Show attendance history for past 30 days
+  const target = isMgmt ? null : user.name; // null = all agents
+  const hist = (allData?.attendance||[])
+    .filter(a=>!target||(a.agent===target))
+    .sort((a,b)=>b.date?.localeCompare(a.date||''));
+
+  // Group by date
+  const byDate={};
+  hist.forEach(a=>{
+    const d=U.normDate(a.date);
+    if(!byDate[d]) byDate[d]=[];
+    byDate[d].push(a);
+  });
+
+  const mgmtView=document.getElementById('mgmt-att-view');
+  const agentView=document.getElementById('agent-checkin');
+  if(mgmtView) mgmtView.style.display='none';
+  if(agentView) agentView.style.display='none';
+
+  // Insert history view
+  let histEl=document.getElementById('att-hist-view');
+  if(!histEl){
+    histEl=document.createElement('div');
+    histEl.id='att-hist-view';
+    document.querySelector('.page-content').appendChild(histEl);
+  }
+
+  if(!Object.keys(byDate).length){
+    histEl.innerHTML='<div class="card"><div class="card-body"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-msg">No attendance history</div></div></div></div>';
+    return;
+  }
+
+  const statusPill=s=>s==='on_time'?'pill-green':s==='late'?'pill-amber':s==='sick'||s==='noshow'?'pill-red':'pill-navy';
+
+  histEl.innerHTML = Object.entries(byDate).slice(0,30).map(([date,records])=>`
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-header"><div class="card-title">${U.fmtDisplay(date)}</div><span class="pill pill-gray">${records.length} records</span></div>
+      ${records.map(r=>`
+        <div class="row-item" style="padding:10px 13px;">
+          <div class="row-icon" style="background:var(--bg);font-size:16px;">👤</div>
+          <div class="row-info">
+            <div class="row-title">${r.agent}</div>
+            <div class="row-meta">${r.markedBy||r.MarkedBy||'—'} · ${r.note||r.Note||''}</div>
+          </div>
+          <span class="pill ${statusPill(r.status)}">${r.status}</span>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+init();
+</script>
+</body>
+</html>
