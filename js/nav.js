@@ -124,7 +124,6 @@ var Nav = (() => {
         buildTopbar(user, pageId);
         buildBottomNav(user, pageId);
         startClock();
-        Auth.startKeepAlive();
       } catch(e) {
         console.error('Nav.init error:', e);
       }
