@@ -535,13 +535,19 @@ async function approveKPI(id, kpiType, approved) {
   const row = document.getElementById('pr-'+id);
   if (row) row.style.opacity='0.5';
   try {
-    await fetch(CFG.N8N.APPROVE_KPI, {
+    const res = await fetch(CFG.N8N.APPROVE_KPI, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ id, kpiType, approved, approvedBy: user.name })
     });
-    U.toast(approved ? `Approved ✓` : `Rejected`, approved ? 'ok' : 'warn');
+    if (!res.ok) throw new Error('HTTP_'+res.status);
+    const status = approved ? 'approved' : 'rejected';
+    // Update local cache immediately
+    const typeMap = {extra:'extra',meeting:'meeting',permission:'permission',issue:'issue'};
+    const kpiArr = allData?.kpi?.[typeMap[kpiType]||kpiType]||[];
+    const entry = kpiArr.find(k=>k.kpi_id===id||k.id===id);
+    if (entry) { entry.status = status; entry.approved_by = user.name; }
     API.clearCache('getAll');
-    API.clearCache('getAll'); // will refresh on next load
+    U.toast(approved ? 'Approved ✓' : 'Rejected', approved ? 'ok' : 'warn');
     renderPending();
     renderDash();
     renderMySubmissions();
