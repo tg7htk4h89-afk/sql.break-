@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0A2E5A">
+<title>KIB WFM — KPI Report</title>
+<link rel="stylesheet" href="css/kib.css">
+<style>
+/* ── Reuse portal patterns ── */
+.report-filter-card{background:var(--white);border:1.5px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 12px rgba(10,74,138,.06);}
+.filter-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.filter-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;}
+.fld-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;}
+.fld{width:100%;padding:9px 10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:12px;color:var(--t1);outline:none;box-sizing:border-box;-webkit-appearance:none;}
+.fld:focus{border-color:var(--navy);}
+
+/* Stat grid — matches kpi.html stat cards */
+.rpt-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.rpt-stat{background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:12px 8px;text-align:center;box-shadow:0 2px 12px rgba(10,74,138,.06);}
+.rpt-stat-num{font-size:22px;font-weight:800;color:var(--t1);}
+.rpt-stat-lbl{font-size:10px;font-weight:700;color:var(--t3);margin-top:2px;}
+
+/* Section card — matches kpi-card style */
+.rpt-card{background:var(--white);border:1.5px solid var(--border);border-radius:16px;margin-bottom:12px;box-shadow:0 2px 12px rgba(10,74,138,.06);overflow:hidden;}
+.rpt-card-hdr{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border2);}
+.rpt-card-icon{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.rpt-card-title{font-size:13px;font-weight:800;color:var(--t1);}
+.rpt-card-sub{font-size:11px;color:var(--t3);margin-top:1px;}
+
+/* Approver rows */
+.approver-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border2);}
+.approver-row:last-child{border-bottom:none;}
+.approver-rank{width:24px;font-size:14px;text-align:center;flex-shrink:0;}
+.approver-info{flex:1;min-width:0;}
+.approver-name{font-size:12px;font-weight:800;color:var(--t1);}
+.approver-bar-wrap{height:5px;background:var(--border2);border-radius:3px;margin-top:5px;overflow:hidden;}
+.approver-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--teal),var(--navy));transition:width .4s;}
+.approver-total{font-size:16px;font-weight:800;color:var(--navy);flex-shrink:0;}
+.type-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
+.tp{font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;}
+.tp-extra{background:#FEF9C3;color:#B45309;}
+.tp-meeting{background:#EFF6FF;color:#0D5CA6;}
+.tp-permission{background:#F0FDF4;color:#16A34A;}
+.tp-issue{background:#FEF2F2;color:#DC2626;}
+
+/* Record rows — like approval-row in kpi.html */
+.rec-row{padding:11px 14px;border-bottom:1px solid var(--border2);}
+.rec-row:last-child{border-bottom:none;}
+.rec-row-top{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.rec-agent{font-size:12px;font-weight:800;color:var(--t1);}
+.rec-detail{font-size:11px;color:var(--t2);}
+.rec-meta{font-size:10px;color:var(--t3);margin-top:3px;}
+.rec-approver{font-size:11px;color:var(--teal);font-weight:600;}
+
+.ktype-badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:8px;display:inline-flex;align-items:center;gap:3px;}
+.status-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;}
+.status-pending{background:#FEF9EE;color:#B45309;}
+.status-approved{background:#DCFCE7;color:#16A34A;}
+.status-rejected{background:#FEE2E2;color:#DC2626;}
+</style>
+</head>
+<body>
+<div id="kib-topbar"></div>
+<div id="kib-app">
+  <div id="user-strip-wrap"></div>
+  <div class="page-content">
+
+    <!-- Loading -->
+    <div id="rpt-loading" style="text-align:center;padding:40px;color:var(--t2);">
+      <div class="kib-spin" style="margin:0 auto 12px;"></div>
+      Loading KPI Report…
+    </div>
+
+    <!-- Filters -->
+    <div class="report-filter-card">
+      <div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📊 KPI Report Filters</div>
+      <div class="filter-row">
+        <div><label class="fld-label">From Date</label><input type="date" class="fld" id="f-from"></div>
+        <div><label class="fld-label">To Date</label><input type="date" class="fld" id="f-to"></div>
+      </div>
+      <div class="filter-row-3">
+        <div>
+          <label class="fld-label">Type</label>
+          <select class="fld" id="f-type">
+            <option value="">All Types</option>
+            <option value="extra">☕ Extra Break</option>
+            <option value="meeting">📋 Meeting</option>
+            <option value="permission">🚪 Permission</option>
+            <option value="issue">💻 System Issue</option>
+          </select>
+        </div>
+        <div>
+          <label class="fld-label">Status</label>
+          <select class="fld" id="f-status">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div><label class="fld-label">MTD Month</label><input type="month" class="fld" id="f-month"></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label class="fld-label">Agent Name</label>
+        <input type="text" class="fld" id="f-agent" placeholder="Search agent…">
+      </div>
+      <button class="btn btn-navy btn-block" id="btn-run" onclick="runReport()">🔍 Run Report</button>
+    </div>
+
+    <!-- Summary -->
+    <div class="rpt-stat-grid" id="sum-grid" style="display:none;">
+      <div class="rpt-stat"><div class="rpt-stat-num" id="s-total">—</div><div class="rpt-stat-lbl">Total</div></div>
+      <div class="rpt-stat"><div class="rpt-stat-num" style="color:#16A34A;" id="s-approved">—</div><div class="rpt-stat-lbl">Approved</div></div>
+      <div class="rpt-stat"><div class="rpt-stat-num" style="color:#B45309;" id="s-pending">—</div><div class="rpt-stat-lbl">Pending</div></div>
+      <div class="rpt-stat"><div class="rpt-stat-num" style="color:#DC2626;" id="s-rejected">—</div><div class="rpt-stat-lbl">Rejected</div></div>
+    </div>
+
+    <!-- Approver leaderboard -->
+    <div class="rpt-card" id="approver-card" style="display:none;">
+      <div class="rpt-card-hdr">
+        <div class="rpt-card-icon" style="background:rgba(200,149,42,.1);">🏆</div>
+        <div style="flex:1;">
+          <div class="rpt-card-title">Top Approvers</div>
+          <div class="rpt-card-sub" id="mtd-lbl">Month-to-Date</div>
+        </div>
+        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportApprovers()">⬇ Export</button>
+      </div>
+      <div id="approver-list"></div>
+    </div>
+
+    <!-- KPI Records -->
+    <div class="rpt-card" id="records-card" style="display:none;margin-bottom:90px;">
+      <div class="rpt-card-hdr">
+        <div class="rpt-card-icon" style="background:rgba(13,92,166,.08);">📋</div>
+        <div style="flex:1;">
+          <div class="rpt-card-title">KPI Records</div>
+          <div class="rpt-card-sub" id="rec-count">—</div>
+        </div>
+        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportCSV()">⬇ CSV</button>
+      </div>
+      <div id="rec-list"></div>
+    </div>
+
+  </div>
+</div>
+<div id="kib-bottomnav"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/nav.js"></script>
+<script>
+if (!Auth.guard()) throw 0;
+const user = Auth.user();
+Nav.init('kpi-report');
+document.getElementById('user-strip-wrap').innerHTML = Nav.renderUserStrip ? Nav.renderUserStrip() : '';
+
+const now = new Date();
+const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+document.getElementById('f-from').value  = `${y}-${m}-01`;
+document.getElementById('f-to').value    = U.today();
+document.getElementById('f-month').value = `${y}-${m}`;
+
+const ICONS  = {extra:'☕',meeting:'📋',permission:'🚪',issue:'💻'};
+const LABELS = {extra:'Extra Break',meeting:'Meeting',permission:'Permission',issue:'System Issue'};
+const TCLS   = {extra:'tp-extra',meeting:'tp-meeting',permission:'tp-permission',issue:'tp-issue'};
+const IBGS   = {extra:'rgba(180,83,9,.1)',meeting:'rgba(13,92,166,.08)',permission:'rgba(22,163,74,.08)',issue:'rgba(220,38,38,.08)'};
+
+let reportData = null;
+
+async function runReport() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true; btn.textContent = '⏳ Loading…';
+  document.getElementById('rpt-loading').style.display = '';
+
+  try {
+    const res = await fetch(CFG.N8N.KPI_REPORT, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        agent:  document.getElementById('f-agent').value.trim(),
+        type:   document.getElementById('f-type').value,
+        status: document.getElementById('f-status').value,
+        from:   document.getElementById('f-from').value,
+        to:     document.getElementById('f-to').value,
+        month:  document.getElementById('f-month').value,
+      })
+    });
+    if (!res.ok) throw new Error('HTTP_' + res.status);
+    const d = await res.json();
+    const data = Array.isArray(d) ? d[0] : d;
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    reportData = data;
+    renderReport(data);
+  } catch(e) {
+    U.toast('Failed: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 Run Report';
+    document.getElementById('rpt-loading').style.display = 'none';
+  }
+}
+
+function renderReport(data) {
+  // Summary
+  document.getElementById('sum-grid').style.display = '';
+  document.getElementById('s-total').textContent    = data.summary.total;
+  document.getElementById('s-approved').textContent = data.summary.approved;
+  document.getElementById('s-pending').textContent  = data.summary.pending;
+  document.getElementById('s-rejected').textContent = data.summary.rejected;
+
+  // Approver leaderboard
+  document.getElementById('approver-card').style.display = '';
+  document.getElementById('mtd-lbl').textContent = `MTD · ${data.mtdMonth}`;
+  const maxT = data.approverStats[0]?.total || 1;
+
+  document.getElementById('approver-list').innerHTML = data.approverStats.length
+    ? data.approverStats.map((a, i) => `
+      <div class="approver-row">
+        <div class="approver-rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+        <div class="approver-info">
+          <div class="approver-name">${a.name}</div>
+          <div class="type-pills">
+            ${a.issue      ? `<span class="tp tp-issue">💻 ${a.issue}</span>`      : ''}
+            ${a.permission ? `<span class="tp tp-permission">🚪 ${a.permission}</span>` : ''}
+            ${a.extra      ? `<span class="tp tp-extra">☕ ${a.extra}</span>`      : ''}
+            ${a.meeting    ? `<span class="tp tp-meeting">📋 ${a.meeting}</span>`  : ''}
+          </div>
+          <div class="approver-bar-wrap"><div class="approver-bar-fill" style="width:${Math.round(a.total/maxT*100)}%"></div></div>
+        </div>
+        <div class="approver-total">${a.total}</div>
+      </div>`).join('')
+    : '<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px;">No approvals this month</div>';
+
+  // Records
+  document.getElementById('records-card').style.display = '';
+  document.getElementById('rec-count').textContent = `${data.total} records`;
+  document.getElementById('rec-list').innerHTML = data.records.length
+    ? data.records.map(r => {
+        const stCls = r.status==='approved'?'status-approved':r.status==='rejected'?'status-rejected':'status-pending';
+        return `<div class="rec-row">
+          <div class="rec-row-top">
+            <div style="width:32px;height:32px;border-radius:9px;background:${IBGS[r.kpi_type]};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">${ICONS[r.kpi_type]||'📋'}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="rec-agent">${r.agent||'—'}</span>
+                <span class="ktype-badge ${TCLS[r.kpi_type]||''}">${LABELS[r.kpi_type]||r.kpi_type}</span>
+                <span class="status-pill ${stCls}">${r.status}</span>
+              </div>
+              <div class="rec-detail">${r.detail||''}${r.duration?' · '+r.duration:''}</div>
+            </div>
+          </div>
+          <div class="rec-meta">
+            📅 ${r.kpi_date||''}  ·  👥 ${r.team||r.dept||''}
+            ${r.approved_by ? `  ·  <span class="rec-approver">✓ ${r.approved_by}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px;">No records found</div>';
+}
+
+function exportCSV() {
+  if (!reportData?.records?.length) return U.toast('Run report first','warn');
+  const hdrs = ['Date','Agent','Team','Type','Duration','Detail','Status','Approved By'];
+  const rows = reportData.records.map(r => [
+    r.kpi_date, r.agent, r.team||r.dept||'',
+    LABELS[r.kpi_type]||r.kpi_type, r.duration||'',
+    (r.detail||'').replace(/,/g,';'), r.status, r.approved_by||''
+  ]);
+  const csv = [hdrs,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `KPI_Records_${U.today()}.csv`;
+  a.click();
+}
+
+function exportApprovers() {
+  if (!reportData?.approverStats?.length) return U.toast('Run report first','warn');
+  const hdrs = ['Approver','Total','Issues','Permissions','Extra Breaks','Meetings'];
+  const rows = reportData.approverStats.map(a =>
+    [a.name, a.total, a.issue||0, a.permission||0, a.extra||0, a.meeting||0]
+  );
+  const csv = [hdrs,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `KPI_Approvers_${document.getElementById('f-month').value}.csv`;
+  a.click();
+}
+
+runReport();
+</script>
+</body>
+</html>
