@@ -468,7 +468,7 @@ function renderPending() {
   if (!isMgmt) return;
 
   const kpi = data?.kpi||{};
-  const isPending = k => !String(k.ApprovedBy||k.approvedBy||'').trim();
+  const isPending = k => { const st=String(k.status||'').toLowerCase(); const ab=String(k.ApprovedBy||k.approvedBy||k.approved_by||'').trim(); return st==='pending' || (!ab && st!=='approved' && st!=='rejected'); };
   const isForMe   = k => {
     const cmt = String(k.Comment||k.comment||'').trim();
     if (!cmt || !cmt.includes('Requested to:')) return true;
@@ -481,7 +481,7 @@ function renderPending() {
     ...(kpi.extra     ||[]).filter(k=>isPending(k)&&isForMe(k)).map(k=>({...k,_t:'extra'})),
     ...(kpi.meeting   ||[]).filter(k=>isPending(k)&&isForMe(k)).map(k=>({...k,_t:'meeting'})),
   ].filter(k => matchFilters())
-   .sort((a,b)=>(b.Timestamp||b.Date||'').localeCompare(a.Timestamp||a.Date||''));
+   .sort((a,b)=>(b.date||b.kpi_date||b.Date||b.Timestamp||'').localeCompare(a.date||a.kpi_date||a.Date||a.Timestamp||''));
 
   const badge = document.getElementById('pending-badge');
   // Total unfiltered pending count
@@ -544,8 +544,13 @@ async function approveKPI(id, kpiType, approved) {
     // Update local cache immediately
     const typeMap = {extra:'extra',meeting:'meeting',permission:'permission',issue:'issue'};
     const kpiArr = allData?.kpi?.[typeMap[kpiType]||kpiType]||[];
-    const entry = kpiArr.find(k=>k.kpi_id===id||k.id===id);
-    if (entry) { entry.status = status; entry.approved_by = user.name; }
+    const entry = kpiArr.find(k=>k.kpi_id===id||k.id===id||k.ID===id);
+    if (entry) {
+      entry.status      = status;
+      entry.approved_by = user.name;
+      entry.approvedBy  = user.name;
+      entry.ApprovedBy  = user.name;
+    }
     API.clearCache('getAll');
     U.toast(approved ? 'Approved ✓' : 'Rejected', approved ? 'ok' : 'warn');
     renderPending();
