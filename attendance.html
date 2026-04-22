@@ -170,7 +170,13 @@ async function logAttendance(status) {
   try {
     const rec = { agent:user.name, date:selDate, status, time:U.nowHHMM(), loggedBy:user.name, ts:new Date().toISOString() };
     await API.saveAttendance([rec]);
-    allData = await API.getAll(true);
+    // Update local cache immediately without full reload
+    if (!allData.attendance) allData.attendance = [];
+    const existIdx = allData.attendance.findIndex(a => a.agent===user.name && U.normDate(a.date)===selDate);
+    const attRec = { agent:user.name, date:selDate, status, time:U.nowHHMM(), markedBy:user.name };
+    if (existIdx>=0) allData.attendance[existIdx] = attRec;
+    else allData.attendance.push(attRec);
+    API.clearCache('getAll');
     renderAgentStatus();
     U.toast(`Logged as ${status} ✓`, 'ok');
   } catch(e) {
@@ -391,8 +397,13 @@ async function saveEditStatus(agentName) {
     }
 
     U.closeModal();
+    // Update local attendance immediately
+    if (!allData.attendance) allData.attendance = [];
+    const _idx = allData.attendance.findIndex(a => a.agent===agentName && U.normDate(a.date)===selDate);
+    const _rec = { agent:agentName, date:selDate, status, note:fullNote, newShift: status==='change'?newShift:'', markedBy:user.name, time:U.nowHHMM() };
+    if (_idx>=0) allData.attendance[_idx] = _rec;
+    else allData.attendance.push(_rec);
     API.clearCache('getAll');
-    allData = await API.getAll(true);
     renderMgmtView();
     U.toast(`${agentName} → ${status} ✓`, 'ok');
   } catch(e) {
