@@ -340,8 +340,22 @@ async function actOnRequest(id, kind, action, note='') {
         body: JSON.stringify({ id, status: action==='approve'?'approved':'rejected', actionedBy: user.name })
       });
     }
-    U.toast(`${action==='approve'?'Approved':'Rejected'} ✓`, 'ok');
-    API.clearCache('getAll'); // cache cleared — next page load will refresh
+    U.toast(`${action==='approve'?'Approved' :'Rejected'} ✓`, 'ok');
+
+    // Update local data immediately — remove from pending list
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    if (kind === 'leave' && data?.leaves) {
+      const item = data.leaves.find(l => (l.id||l.ID) === id);
+      if (item) item.status = newStatus;
+    } else if (kind === 'swap' && data?.swaps) {
+      const item = data.swaps.find(s => (s.id||s.ID) === id);
+      if (item) item.status = newStatus;
+    } else if (kind === 'pref' && data?.scheduleRequests) {
+      const item = data.scheduleRequests.find(r => (r.id||r.ID||r.ref_id) === id);
+      if (item) item.status = newStatus;
+    }
+
+    API.clearCache('getAll');
     Nav.setSyncStatus(true);
     try { renderAll(); } catch(re){ console.error('renderAll error:',re); }
   } catch(e) {
