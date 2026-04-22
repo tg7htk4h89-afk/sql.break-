@@ -484,7 +484,7 @@ function showSwapForBreak(breakId) {
     </div>`;
 }
 
-async async function submitSwapForBreak(breakId) {
+async function submitSwapForBreak(breakId) {
   const collRaw = document.getElementById('swap-inline-coll')?.value;
   if (!collRaw) return U.toast('Select a colleague', 'warn');
   const collIdx = parseInt(collRaw);
