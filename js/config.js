@@ -30,6 +30,7 @@ var CFG = {
     SWAPS:             'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-swap',
     KPI:               'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-kpi',
     SCHED_REQ:         'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-schedrequest',
+    KPI_REPORT:        'https://n8n.kib-cc-wfm.com/webhook/kib-v2-kpi-report',
     APPROVE_SCHEDREQ: 'https://n8n.kib-cc-wfm.com/webhook/kib-v2-approve-schedrequest',
     MOOD_GET:        'https://n8n.kib-cc-wfm.com/webhook/kib-v2-mood-get',
     MOOD_SUBMIT:     'https://n8n.kib-cc-wfm.com/webhook/kib-v2-mood-submit',
@@ -114,6 +115,7 @@ var CFG = {
       { id: 'schedule',      icon: '🗓', label: 'Schedule', page: 'schedule.html'      },
       { id: 'schedule-edit', icon: '📝', label: 'Editor',   page: 'schedule-edit.html' },
       { id: 'requests',      icon: '📋', label: 'Requests', page: 'requests.html'      },
+      { id: 'kpi-report',    icon: '📊', label: 'KPI Rpt',  page: 'kpi-report.html'    },
       { id: 'mood',          icon: '😊', label: 'Mood',     page: 'mood.html'          }
     ],
     wfm: [
@@ -121,6 +123,7 @@ var CFG = {
       { id: 'schedule-edit', icon: '📅', label: 'Editor',  page: 'schedule-edit.html' },
       { id: 'attendance',    icon: '✅', label: 'Attend',  page: 'attendance.html'    },
       { id: 'requests',      icon: '📋', label: 'Requests',page: 'requests.html'      },
+      { id: 'kpi-report',    icon: '📊', label: 'KPI Rpt', page: 'kpi-report.html'    },
       { id: 'mood',          icon: '😊', label: 'Mood',    page: 'mood.html'          }
     ],
     admin: [
