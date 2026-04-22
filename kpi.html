@@ -372,7 +372,23 @@ async function logKPI(type, e) {
     U.toast('Submitted — pending approval ⏳','ok');
     document.querySelectorAll('#card-'+type+' input,#card-'+type+' textarea').forEach(el=>el.value='');
     toggleCard(type);
-    API.clearCache('getAll'); // cache cleared — next page load will refresh
+    // Add to local data immediately so it shows in My Submissions
+    if (!data.kpi) data.kpi = {};
+    if (!data.kpi[type]) data.kpi[type] = [];
+    // Normalize entry to match what SQL returns (lowercase fields)
+    const newEntry = {
+      kpi_id: entry.ID, kpi_date: entry.Date, kpi_time: entry.Time,
+      agent: entry.Agent||user.name, dept: entry.Dept||user.dept,
+      team: entry.Team||user.dept, role: entry.Role||user.role,
+      shift: entry.Shift||'', duration: entry.Duration||'',
+      reason: entry.Reason||entry.Subject||'',
+      approved_by: '', status: 'pending', _type: type,
+      date: entry.Date,
+      // Keep uppercase too for compatibility
+      Agent: entry.Agent||user.name, Date: entry.Date,
+    };
+    data.kpi[type].push(newEntry);
+    API.clearCache('getAll');
     Nav.setSyncStatus(true);
     renderMySubmissions();
     if (isMgmt) renderPending();
@@ -388,7 +404,7 @@ async function logKPI(type, e) {
 /* ── My Submissions ── */
 function renderMySubmissions() {
   const kpi  = data?.kpi||{};
-  const norm = v => U.normDate(v?.Date||v?.date||'');
+  const norm = v => U.normDate(v?.kpi_date||v?.Date||v?.date||'');
 
   // Last 5 days
   const last5 = [];
@@ -399,10 +415,10 @@ function renderMySubmissions() {
   }
 
   const all = [
-    ...(kpi.issue     ||[]).filter(k=>k.Agent===user.name).map(k=>({...k,_t:'issue'})),
-    ...(kpi.permission||[]).filter(k=>k.Agent===user.name).map(k=>({...k,_t:'permission'})),
-    ...(kpi.extra     ||[]).filter(k=>k.Agent===user.name).map(k=>({...k,_t:'extra'})),
-    ...(kpi.meeting   ||[]).filter(k=>k.Agent===user.name).map(k=>({...k,_t:'meeting'})),
+    ...(kpi.issue     ||[]).filter(k=>k.Agent===user.name||k.agent===user.name).map(k=>({...k,_t:'issue'})),
+    ...(kpi.permission||[]).filter(k=>k.Agent===user.name||k.agent===user.name).map(k=>({...k,_t:'permission'})),
+    ...(kpi.extra     ||[]).filter(k=>k.Agent===user.name||k.agent===user.name).map(k=>({...k,_t:'extra'})),
+    ...(kpi.meeting   ||[]).filter(k=>k.Agent===user.name||k.agent===user.name).map(k=>({...k,_t:'meeting'})),
   ].filter(k => last5.includes(norm(k)))
    .sort((a,b) => {
      const da = (norm(a)||''), db = (norm(b)||'');
@@ -565,7 +581,7 @@ async function approveKPI(id, kpiType, approved) {
 /* ── Management Dashboard ── */
 function renderMyCounts() {
   const kpi  = data?.kpi||{};
-  const norm = v => U.normDate(v?.Date||v?.date||'');
+  const norm = v => U.normDate(v?.kpi_date||v?.Date||v?.date||'');
   const me   = user.name;
   const cnt  = t => (kpi[t]||[]).filter(k=>(k.Agent||k.agent||'')===me && norm(k)===today).length;
   U.se('my-cnt-issue',      cnt('issue'));
