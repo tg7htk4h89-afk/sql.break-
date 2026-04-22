@@ -830,11 +830,11 @@ function renderSwapRequests() {
             Their slot: <b>${theirSlot}</b> ↔ Your slot: <b>${mySlot}</b>
           </div>
           <div style="display:flex;gap:8px;">
-            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',true)"
+            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',true,'${s.from||''}','${s.to||''}','${s.date||''}')"
               style="flex:1;padding:9px;border-radius:10px;border:none;background:#0A4A8A;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">
               ✓ Accept
             </button>
-            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',false)"
+            <button onclick="respondToSwap('${s.id}','${s.fromBreakId||''}','${s.toBreakId||''}','${s.fromSlot||s.shiftFrom||''}','${s.toSlot||s.shiftTo||''}',false,'${s.from||''}','${s.to||''}','${s.date||''}')"
               style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #E5E7EB;background:#fff;color:#EF4444;font-size:13px;font-weight:800;cursor:pointer;">
               ✕ Reject
             </button>
@@ -864,13 +864,13 @@ function renderSwapRequests() {
   container.innerHTML = html;
 }
 
-async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, accepted) {
+async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, accepted, fromAgent, toAgent, swapDate) {
   try {
     if (accepted) {
       // Swap the break times in BreakLog
       await fetch(CFG.N8N.RESPOND_SWAP, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ accepted: 'true', swapId, fromBreakId, toBreakId, fromSlot, toSlot, respondedBy: user.name })
+        body: JSON.stringify({ accepted: 'true', swapId, fromBreakId, toBreakId, fromSlot, toSlot, respondedBy: user.name, fromAgent: fromAgent||'', toAgent: toAgent||user.name, date: swapDate||today })
       });
       U.toast('Swap accepted — times exchanged ✓', 'ok');
     } else {
@@ -880,9 +880,24 @@ async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, a
       });
       U.toast('Swap rejected', 'ok');
     }
-    // cache preserved - breaks use refreshBreaks()
-    API.clearCache('getAll'); // will refresh on next load
-    renderBalance(); buildSlotGrid(); renderBookedBanner(); renderSwapRequests();
+    // Update local data immediately
+    if (data?.swaps) {
+      const swap = data.swaps.find(s => s.id === swapId);
+      if (swap) swap.status = accepted ? 'approved' : 'rejected';
+    }
+    // Swap break times locally if accepted
+    if (accepted && data?.breakLog) {
+      const fromBreak = data.breakLog.find(b => (b.id||b.ID) === fromBreakId);
+      const toBreak   = data.breakLog.find(b => (b.id||b.ID) === toBreakId);
+      if (fromBreak && toBreak) {
+        const tmp = fromBreak.breakStart;
+        fromBreak.breakStart = toBreak.breakStart;
+        toBreak.breakStart   = tmp;
+      }
+    }
+    API.clearCache('getAll');
+    renderBalance(); buildSlotGrid(); renderBookedBanner();
+    renderSwapRequests(); populateNewSwapForm();
   } catch(e) {
     U.toast('Failed to respond to swap', 'err');
   }
