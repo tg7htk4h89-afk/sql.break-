@@ -97,7 +97,7 @@ var API = (() => {
     async submitKpi(payload)        { return Auth.callAPI(CFG.N8N.KPI, payload); },
     async markAttendance(payload)   { return Auth.callAPI(CFG.N8N.ATTENDANCE, payload); },
     async updateShift(payload)      { return Auth.callAPI(CFG.N8N.UPDATE_SHIFT, payload); },
-    async bulkUpdateShifts(payload) { return Auth.callAPI(CFG.N8N.UPDATE_SHIFT, { action:'bulkUpdateShifts', ...payload }); },
+    async bulkUpdateShifts(changes, updatedBy) { return Auth.callAPI(CFG.N8N.UPDATE_SHIFT, { action:'bulkUpdateShifts', changes: Array.isArray(changes) ? changes : Object.values(changes), updatedBy }); },
     async submitSchedReq(payload)   { return Auth.callAPI(CFG.N8N.SCHED_REQ, payload); },
     async actionSchedReq(payload)   { return Auth.callAPI(CFG.N8N.SCHED_REQ, payload); },
     async sendNotif(payload)        { return Auth.callAPI(CFG.N8N.NOTIFY, payload); },
