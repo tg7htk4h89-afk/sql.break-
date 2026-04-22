@@ -615,13 +615,13 @@ function renderDash() {
   const fTeam     = document.getElementById('df-team')?.value  || '';
   const fType     = document.getElementById('df-type')?.value  || '';
   const kpi  = data?.kpi||{};
-  const norm = v=>U.normDate(v?.Date||v?.date||'');
+  const norm = v=>U.normDate(v?.kpi_date||v?.Date||v?.date||'');
   const icons= {extra:'☕',meeting:'📋',permission:'🚪',issue:'💻'};
   const bgs  = {extra:'#FFFBEB',meeting:'#EFF6FF',permission:'#F0FDF4',issue:'#FEF2F2'};
 
   const matchDash = (k,t) => {
     if (norm(k) !== sel) return false;
-    if (fAgent && (k.Agent||k.agent||'') !== fAgent) return false;
+    if (fAgent && (k.Agent||k.agent||'').trim() !== fAgent.trim()) return false;
     if (fTeam  && (k.Team||k.Dept||k.dept||'') !== fTeam) return false;
     if (fType  && t !== fType) return false;
     return true;
