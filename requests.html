@@ -336,9 +336,10 @@ async function actOnRequest(id, kind, action, note='') {
     } else {
       // Schedule preference — update status
       await API.submitScheduleRequest({
-        agent: '', team: '', date: '', currentShift: '', requestedShift: '',
-        reason: note, Ref: id, Status: action==='approve'?'approved':'rejected'
       });
+      await fetch(CFG.N8N.APPROVE_SCHEDREQ, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id, status: action==='approve'?'approved':'rejected', actionedBy: user.name })
     }
     U.toast(`${action==='approve'?'Approved':'Rejected'} ✓`, 'ok');
     API.clearCache('getAll'); // cache cleared — next page load will refresh
