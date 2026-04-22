@@ -738,13 +738,20 @@ function populateNewSwapForm() {
     window._swapColleagues2[nm].push((b.breakStart||'').slice(0,5));
   });
 
+  // Only show agents who have a booked/active break today
+  const collWithBreaks = others.filter(a => {
+    const nm = a.n||a.name;
+    return (window._swapColleagues2[nm]||[]).length > 0;
+  });
+
   collSel.innerHTML = '<option value="">— Select colleague —</option>' +
-    others.map(a => {
+    collWithBreaks.map(a => {
       const nm = a.n||a.name;
-      const slots = (window._swapColleagues2[nm]||[]);
-      const info  = slots.length ? slots.map(s => U.fmt12?U.fmt12(s):s).join(', ') : 'no break';
+      const slots = window._swapColleagues2[nm]||[];
+      const info  = slots.map(s => U.fmt12?U.fmt12(s):s).join(', ');
       return `<option value="${nm}">${nm} — ${info}</option>`;
-    }).join('');
+    }).join('') ||
+    '<option value="" disabled>No colleagues with booked breaks</option>';
 }
 
 async function submitNewSwapRequest() {
