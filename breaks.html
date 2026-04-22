@@ -378,6 +378,15 @@ async function bookBreak(){
     renderBalance(); buildSlotGrid();
     btn.disabled=false; btn.textContent='Book Break';
     U.toast('Break booked ✓ — tap Start when ready','ok');
+    // Fetch fresh breaks from server after 2s to confirm and sync
+    setTimeout(async () => {
+      try {
+        const r = await fetch(CFG.N8N.GET_ALL, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const d = await r.json();
+        const fresh = Array.isArray(d) ? d[0] : d;
+        if (fresh?.breakLog) { data.breakLog = fresh.breakLog; buildSlotGrid(); renderTeam(); renderBalance(); }
+      } catch(e) {}
+    }, 2000);
   }catch(e){
     U.toast('Failed to book break','err');
     btn.disabled=false; btn.textContent='Book Break';
@@ -981,7 +990,7 @@ setInterval(async () => {
       detectActiveBreak();
     }
   } catch(e) {}
-}, 60000);
+}, 20000);
 </script>
 </body>
 </html>
