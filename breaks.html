@@ -538,7 +538,7 @@ async function startBookedBreak(breakId) {
 
 async function init(){
   try{
-    data=await API.getAll();
+    data=await API.getAll(true) // always fresh — breaks change throughout day;
     Nav.setSyncStatus(true);
     const s=data?.settings||{};
     DAILY_MIN=parseInt(s.dailyMin||s.daily_min||60);
@@ -798,7 +798,7 @@ async function swapBreak() {
   }
 }
 
-init();
+init(true);
 </script>
 </body>
 </html>
