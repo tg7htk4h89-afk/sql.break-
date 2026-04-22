@@ -420,14 +420,35 @@ function showSwapForBreak(breakId) {
   const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
   if (!bk) return;
 
-  // Build swap modal
-  const slot = (bk.breakStart||bk['Break Start']||'');
-  const slotDisp = U.fmt12 ? U.fmt12(slot.slice(0,5)) : slot;
-  // Colleagues with booked breaks only — will be filled by fillSwapColleagues()
+  const slot = (bk.breakStart||bk['Break Start']||'').slice(0,5);
+  const slotDisp = U.fmt12 ? U.fmt12(slot) : slot;
 
-  const opts = colleagues.map(a =>
-    `<option value="${a.n||a.name}">${a.n||a.name} (${a.t||a.team||''})</option>`
-  ).join('');
+  // Build colleagues list — agents who have a booked break today
+  const todayBreaks = allBreaksToday().filter(b =>
+    (b.agent||b.Agent) !== user.name &&
+    ['booked','active'].includes((b.status||b.Status||'').toLowerCase())
+  );
+
+  // Unique agents with their slot info
+  const collMap = {};
+  todayBreaks.forEach(b => {
+    const name = b.agent||b.Agent||'';
+    if (!collMap[name]) collMap[name] = [];
+    collMap[name].push({ slot: (b.breakStart||b['Break Start']||'').slice(0,5), breakId: b.id||b.ID });
+  });
+
+  // Also include all agents (even without breaks) for time swap
+  const allAgentsList = (data?.agents||[])
+    .filter(a => (a.n||a.name) !== user.name)
+    .sort((a,b) => (a.n||a.name).localeCompare(b.n||b.name));
+
+  const opts = allAgentsList.map(a => {
+    const name = a.n||a.name;
+    const theirBreaks = collMap[name];
+    const breakInfo = theirBreaks ? theirBreaks.map(b => U.fmt12?U.fmt12(b.slot):b.slot).join(', ') : 'no break booked';
+    const val = JSON.stringify({ agent: name, slot: theirBreaks?.[0]?.slot||'', breakId: theirBreaks?.[0]?.breakId||'' });
+    return `<option value='${val.replace(/'/g,"&apos;")}'>${name} — ${breakInfo}</option>`;
+  }).join('');
 
   // Show inline swap UI in the banner
   const banner = document.getElementById('live-banner');
@@ -456,22 +477,29 @@ function showSwapForBreak(breakId) {
     </div>`;
 }
 
-async function submitSwapForBreak(breakId) {
-  const coll = document.getElementById('swap-inline-coll')?.value;
-  if (!coll) return U.toast('Select a colleague', 'warn');
+async async function submitSwapForBreak(breakId) {
+  const collRaw = document.getElementById('swap-inline-coll')?.value;
+  if (!collRaw) return U.toast('Select a colleague', 'warn');
+  let collInfo;
+  try { collInfo = JSON.parse(collRaw.replace(/&apos;/g,"'")); } catch(e) { collInfo = { agent: collRaw, slot:'', breakId:'' }; }
   const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
   if (!bk) return;
-  const slot = bk.breakStart||bk['Break Start']||'';
+  const mySlot = (bk.breakStart||bk['Break Start']||'').slice(0,5);
   try {
     await API.submitSwap({
-      from:      user.name,
-      to:        coll,
-      date:      today,
-      shiftFrom: slot,
-      shiftTo:   '',
-      reason:    'Break swap request'
+      id:          'SW-' + Date.now(),
+      from:        user.name,
+      to:          collInfo.agent,
+      date:        today,
+      shiftFrom:   mySlot,
+      shiftTo:     collInfo.slot||'',
+      fromBreakId: breakId,
+      toBreakId:   collInfo.breakId||'',
+      fromSlot:    mySlot,
+      toSlot:      collInfo.slot||'',
+      reason:      `Break swap: ${U.fmt12?U.fmt12(mySlot):mySlot} ↔ ${collInfo.slot?U.fmt12?U.fmt12(collInfo.slot):collInfo.slot:'no break'}`
     });
-    U.toast('Swap request sent to ' + coll + ' ✓', 'ok');
+    U.toast('Swap request sent to ' + collInfo.agent + ' ✓', 'ok');
     renderBookedBanner();
   } catch(e) {
     U.toast('Failed to send swap', 'err');
