@@ -212,9 +212,9 @@ function renderMgmtView() {
     const shift = dateIdxStat>=0&&ag.sch ? ag.sch[dateIdxStat] : '';
     const isLv  = ['AL','SL','PH','UL','PL'].includes(shift);
     if (rec) {
-      if (['present','on_time'].includes(rec.status))    present++;
+      if (['present','on_time','Present'].includes(rec.status)) present++;
       else if (rec.status==='late')                      late++;
-      else if (['absent','noshow','sick'].includes(rec.status)) absent++;
+      else if (['absent','noshow','sick','Absent'].includes(rec.status)) absent++;
       else if (['permission','al','sl','ph'].includes(rec.status)||isLv) leave++;
     } else if (isLv) leave++;
   });
