@@ -19,6 +19,12 @@
 .status-approved{background:#DCFCE7;color:#16A34A;}
 .status-rejected{background:#FEE2E2;color:#DC2626;}
 .approval-row{background:#F8FAFF;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;}
+
+.kd-row{display:flex;padding:8px 0;border-bottom:1px solid #f0f0f0;}
+.kd-row:last-child{border-bottom:none;}
+.kd-label{font-size:11px;font-weight:700;color:var(--t3);width:110px;flex-shrink:0;padding-top:1px;}
+.kd-val{font-size:12px;color:var(--t1);flex:1;word-break:break-word;}
+
 </style>
 </head>
 <body>
@@ -562,9 +568,9 @@ async function approveKPI(id, kpiType, approved) {
     });
     if (!res.ok) throw new Error('HTTP_'+res.status);
     const status = approved ? 'approved' : 'rejected';
-    // Update local cache immediately
+    // Update local data immediately (page uses 'data' not 'allData')
     const typeMap = {extra:'extra',meeting:'meeting',permission:'permission',issue:'issue'};
-    const kpiArr = allData?.kpi?.[typeMap[kpiType]||kpiType]||[];
+    const kpiArr = data?.kpi?.[typeMap[kpiType]||kpiType]||[];
     const entry = kpiArr.find(k=>k.kpi_id===id||k.id===id||k.ID===id);
     if (entry) {
       entry.status      = status;
@@ -646,8 +652,9 @@ function renderDash() {
 
   const countEl = document.getElementById('dash-count');
   if (countEl) countEl.textContent = all.length + ' records';
-  document.getElementById('kpi-entries').innerHTML = all.length ? all.map(k=>`
-    <div class="approval-row">
+  window._kpiDashData = all;
+document.getElementById('kpi-entries').innerHTML = all.length ? all.map((k,i)=>`
+    <div class="approval-row" onclick="showKpiDetail(window._kpiDashData[${i}])" style="cursor:pointer;transition:background .12s;" onmouseenter="this.style.background='#f8f9ff'" onmouseleave="this.style.background=''">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:36px;height:36px;border-radius:10px;background:${bgs[k._t]};display:flex;align-items:center;justify-content:center;font-size:18px;">${icons[k._t]}</div>
         <div style="flex:1;">
@@ -704,6 +711,93 @@ async function init(force = false) {
 }
 
 init();
+</script>
+
+<!-- KPI Detail Modal -->
+<div id="kpi-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;padding:16px;overflow-y:auto;" onclick="if(event.target===this)closeKpiDetail()">
+  <div style="background:#fff;border-radius:20px;max-width:480px;margin:20px auto;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div id="kpi-detail-header" style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="kpi-detail-icon" style="font-size:28px;"></span>
+        <div>
+          <div id="kpi-detail-type" style="font-size:13px;font-weight:800;color:#fff;"></div>
+          <div id="kpi-detail-date" style="font-size:11px;color:rgba(255,255,255,.7);"></div>
+        </div>
+      </div>
+      <button onclick="closeKpiDetail()" style="background:rgba(255,255,255,.2);border:none;border-radius:50%;width:30px;height:30px;font-size:18px;color:#fff;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="kpi-detail-body" style="padding:16px 18px 20px;"></div>
+  </div>
+</div>
+
+<script>
+function showKpiDetail(k) {
+  const icons  = {extra:'☕',meeting:'📋',permission:'🚪',issue:'💻'};
+  const labels = {extra:'Extra Break',meeting:'Meeting / Training',permission:'Permission',issue:'System Issue'};
+  const colors = {extra:'#B45309',meeting:'#0D5CA6',permission:'#16A34A',issue:'#DC2626'};
+  const t = k._t || k._type || 'issue';
+  const color = colors[t] || '#0A2E5A';
+
+  document.getElementById('kpi-detail-header').style.background = color;
+  document.getElementById('kpi-detail-icon').textContent = icons[t] || '📋';
+  document.getElementById('kpi-detail-type').textContent = labels[t] || t;
+  document.getElementById('kpi-detail-date').textContent = (k.kpi_date||k.Date||k.date||'') + ' ' + (k.kpi_time||k.Time||'').slice(0,5);
+
+  const row = (label, val) => val ? `<div class="kd-row"><div class="kd-label">${label}</div><div class="kd-val">${val}</div></div>` : '';
+
+  const status = getStatus(k);
+  const statusColor = {pending:'#D97706',approved:'#16A34A',rejected:'#DC2626'}[status] || '#666';
+  const statusLabel = {pending:'⏳ Pending',approved:'✓ Approved',rejected:'✕ Rejected'}[status] || status;
+
+  let body = `
+    ${row('Agent', k.agent||k.Agent||'—')}
+    ${row('Team', k.team||k.Team||k.dept||k.Dept||'')}
+    ${row('Shift', k.shift||k.Shift||'')}
+    ${row('Duration', k.duration||k.Duration||'')}
+    ${row('Date', k.kpi_date||k.Date||k.date||'')}
+    ${row('Time', (k.kpi_time||k.Time||'').slice(0,5))}
+  `;
+
+  if (t === 'issue') {
+    body += `
+      ${row('Application', k.application||k.Application||'')}
+      ${row('Issue Type', k.issue_type||k.IssueType||'')}
+      ${row('Helpdesk No', k.helpdesk_no||k.HelpdeskNo||'')}
+      ${row('Description', k.description||k.Description||'')}
+    `;
+  } else if (t === 'permission') {
+    body += `
+      ${row('Type', k.permission_type||k.PermissionType||'')}
+      ${row('From', k.time_from||k.From||'')}
+      ${row('To', k.time_to||k.To||'')}
+      ${row('Reason', k.reason||k.Reason||'')}
+    `;
+  } else if (t === 'extra') {
+    body += `${row('Reason', k.reason||k.Reason||'')}`;
+  } else if (t === 'meeting') {
+    body += `
+      ${row('Subject', k.subject||k.Subject||'')}
+      ${row('Organizer', k.organizer||k.Organizer||'')}
+    `;
+  }
+
+  const approver = (k.comment||k.Comment||'').replace('Requested to:','').split('|')[0].trim();
+  body += `
+    ${row('Requested To', approver)}
+    ${row('Approved By', k.approved_by||k.ApprovedBy||k.approvedBy||'')}
+    <div class="kd-row">
+      <div class="kd-label">Status</div>
+      <div class="kd-val"><span style="font-weight:700;color:${statusColor};">${statusLabel}</span></div>
+    </div>
+  `;
+
+  document.getElementById('kpi-detail-body').innerHTML = body;
+  document.getElementById('kpi-detail-modal').style.display = '';
+}
+
+function closeKpiDetail() {
+  document.getElementById('kpi-detail-modal').style.display = 'none';
+}
 </script>
 </body>
 </html>
