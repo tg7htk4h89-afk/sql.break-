@@ -351,7 +351,7 @@ async function init(force = false) {
   }
 
   try {
-    data = await API.getAll(force);
+    data = await API.getAll(true); // always fresh for live stats
     Nav.setSyncStatus(true);
     renderHero();
     renderAnn();
@@ -821,10 +821,10 @@ function renderMgmtStats() {
   const sched  = agents.filter(a=>{const s=idx>=0&&a.sch?a.sch[idx]:'';return s&&s!=='OFF'&&!['AL','SL','PH','UL','PL'].includes(s);}).length;
   const pend   = (data?.leaves||[]).filter(l=>l.status==='pending').length + (data?.swaps||[]).filter(s=>s.status==='pending_mgmt').length + (data?.scheduleRequests||[]).filter(r=>r.status==='pending').length;
 
-  U.se('st-ontime', att.filter(a=>a.status==='on_time').length);
+  U.se('st-ontime', att.filter(a=>['on_time','present'].includes(a.status)).length);
   U.se('st-late',   att.filter(a=>a.status==='late').length);
   U.se('st-break',  bl.length);
-  U.se('st-absent', att.filter(a=>['sick','noshow'].includes(a.status)).length);
+  U.se('st-absent', att.filter(a=>['sick','noshow','absent'].includes(a.status)).length);
   U.se('st-sched',  sched);
   U.se('st-pend',   pend);
   U.se('st-swaps',  (data?.swaps||[]).filter(s=>s.status==='approved').length);
