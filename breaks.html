@@ -314,32 +314,49 @@ async function bookBreak(){
 
   // Voicemail/capacity check
   const _vmChecked = document.getElementById('vm-cb')?.checked;
-  const _slotLog = (data?.breakLog||[]).filter(b=>
-    U.normDate(b.date||b['Date'])===today &&
-    (b.status==='booked'||b.status==='active') &&
-    String(b.breakStart||b['Break Start']||'').slice(0,5)===selSlot
-  );
-  const _regNow = _slotLog.filter(b=>!b.voicemailOverride).length;
-  const _vmNow  = _slotLog.filter(b=> b.voicemailOverride).length;
-  if(_vmChecked && _vmNow>=1) return U.toast('Voicemail slot already taken','warn');
-  if(!_vmChecked && _regNow>=MAX_CON) return U.toast('Slot full — max '+MAX_CON+' breaks','warn');
+  // Check ALL slots the duration spans are available
+  const slotsNeeded = Math.ceil(selDurVal / 15);
+  for (let i = 0; i < slotsNeeded; i++) {
+    const checkSlot = U.fromMin(U.toMin(selSlot) + (i * 15));
+    const _slotLog = (data?.breakLog||[]).filter(b=>
+      U.normDate(b.date||b['Date'])===today &&
+      (b.status==='booked'||b.status==='active') &&
+      String(b.breakStart||b['Break Start']||'').slice(0,5)===checkSlot
+    );
+    const _regNow = _slotLog.filter(b=>!b.voicemailOverride).length;
+    const _vmNow  = _slotLog.filter(b=> b.voicemailOverride).length;
+    if(_vmChecked && _vmNow>=1) return U.toast(`Voicemail slot ${checkSlot} already taken`,'warn');
+    if(!_vmChecked && _regNow>=MAX_CON) return U.toast(`Slot ${checkSlot} is full — max ${MAX_CON} breaks`,'warn');
+  }
+  const _slotLog = []; const _regNow=0; const _vmNow=0; // already checked above
+  if(false) return U.toast('Slot full — max '+MAX_CON+' breaks','warn');
 
   const btn = document.getElementById('book-btn');
   btn.disabled=true; btn.textContent='Booking…';
 
-  const bk = {
-    id: U.uid(), agent: user.name, Agent: user.name,
-    date: today, Date: today,
-    breakStart: selSlot, 'Break Start': selSlot,
-    duration: selDurVal, Duration: selDurVal,
-    status: 'booked', Status: 'booked',
-    startedAt: '', 'Booked At': new Date().toISOString(),
-    voicemailOverride: _vmChecked, dept: user.dept||''
-  };
+  // Build break slots — 30min = 2 slots of 15min, 45min = 3, 60min = 4
+  const slotsCount = Math.ceil(selDurVal / 15);
+  const bks = [];
+  for (let i = 0; i < slotsCount; i++) {
+    const slotMin = U.toMin(selSlot) + (i * 15);
+    const slotTime = U.fromMin(slotMin);
+    bks.push({
+      id: U.uid(), agent: user.name, Agent: user.name,
+      date: today, Date: today,
+      breakStart: slotTime, 'Break Start': slotTime,
+      duration: 15, Duration: 15,
+      status: 'booked', Status: 'booked',
+      startedAt: '', 'Booked At': new Date().toISOString(),
+      voicemailOverride: _vmChecked, dept: user.dept||''
+    });
+  }
+  const bk = bks[0]; // primary slot for banner
   try{
-    await API.saveBreaks({action:'book', break:bk, ...bk});
+    for (const slot of bks) {
+      await API.saveBreaks({action:'book', break:slot, ...slot});
+    }
     if(!data.breakLog) data.breakLog=[];
-    data.breakLog.push(bk);
+    bks.forEach(b => data.breakLog.push(b));
     bookedBreak=bk;
     renderBookedBanner();
     renderBalance(); buildSlotGrid();
