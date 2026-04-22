@@ -437,17 +437,24 @@ function showSwapForBreak(breakId) {
     collMap[name].push({ slot: (b.breakStart||b['Break Start']||'').slice(0,5), breakId: b.id||b.ID });
   });
 
-  // Also include all agents (even without breaks) for time swap
+  // Build colleague list — store data in window variable, use index as value
   const allAgentsList = (data?.agents||[])
     .filter(a => (a.n||a.name) !== user.name)
     .sort((a,b) => (a.n||a.name).localeCompare(b.n||b.name));
 
-  const opts = allAgentsList.map(a => {
+  window._swapColleagues = allAgentsList.map(a => {
     const name = a.n||a.name;
     const theirBreaks = collMap[name];
-    const breakInfo = theirBreaks ? theirBreaks.map(b => U.fmt12?U.fmt12(b.slot):b.slot).join(', ') : 'no break booked';
-    const val = JSON.stringify({ agent: name, slot: theirBreaks?.[0]?.slot||'', breakId: theirBreaks?.[0]?.breakId||'' });
-    return `<option value='${val.replace(/'/g,"&apos;")}'>${name} — ${breakInfo}</option>`;
+    return {
+      agent:   name,
+      slot:    theirBreaks?.[0]?.slot||'',
+      breakId: theirBreaks?.[0]?.breakId||''
+    };
+  });
+
+  const opts = window._swapColleagues.map((c, i) => {
+    const breakInfo = c.slot ? (U.fmt12?U.fmt12(c.slot):c.slot) : 'no break';
+    return `<option value="${i}">${c.agent} — ${breakInfo}</option>`;
   }).join('');
 
   // Show inline swap UI in the banner
@@ -480,8 +487,10 @@ function showSwapForBreak(breakId) {
 async async function submitSwapForBreak(breakId) {
   const collRaw = document.getElementById('swap-inline-coll')?.value;
   if (!collRaw) return U.toast('Select a colleague', 'warn');
-  let collInfo;
-  try { collInfo = JSON.parse(collRaw.replace(/&apos;/g,"'")); } catch(e) { collInfo = { agent: collRaw, slot:'', breakId:'' }; }
+  const collIdx = parseInt(collRaw);
+  const collInfo = (window._swapColleagues && !isNaN(collIdx))
+    ? window._swapColleagues[collIdx]
+    : { agent: collRaw, slot:'', breakId:'' };
   const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
   if (!bk) return;
   const mySlot = (bk.breakStart||bk['Break Start']||'').slice(0,5);
