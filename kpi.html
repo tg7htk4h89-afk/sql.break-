@@ -522,7 +522,7 @@ function renderPending() {
   }
 
   el.innerHTML = pending.map(k=>`
-    <div class="approval-row" id="pr-${k.ID}">
+    <div class="approval-row" id="pr-${k.ID||k.kpi_id||k.id}">
       <div style="display:flex;align-items:flex-start;gap:10px;">
         <div style="font-size:22px;flex-shrink:0;">${icons[k._t]}</div>
         <div style="flex:1;">
@@ -535,11 +535,11 @@ function renderPending() {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;">
-        <button onclick="approveKPI('${k.ID}','${k._t}',true)"
+        <button onclick="approveKPI('${k.ID||k.kpi_id||k.id}','${k._t}',true)"
           style="flex:1;padding:8px;border-radius:10px;border:none;background:#0A4A8A;color:#fff;font-size:12px;font-weight:800;cursor:pointer;">
           ✓ Approve
         </button>
-        <button onclick="approveKPI('${k.ID}','${k._t}',false)"
+        <button onclick="approveKPI('${k.ID||k.kpi_id||k.id}','${k._t}',false)"
           style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #E5E7EB;background:#fff;color:#DC2626;font-size:12px;font-weight:800;cursor:pointer;">
           ✕ Reject
         </button>
@@ -548,7 +548,7 @@ function renderPending() {
 }
 
 async function approveKPI(id, kpiType, approved) {
-  const row = document.getElementById('pr-'+id);
+  const row = document.getElementById('pr-'+(id||''));
   if (row) row.style.opacity='0.5';
   try {
     const res = await fetch(CFG.N8N.APPROVE_KPI, {
