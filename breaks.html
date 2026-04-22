@@ -110,6 +110,22 @@
 
     <!-- ══ SWAPS PANE ══ -->
     <div id="pane-swaps" style="display:none;">
+      <!-- New swap request form -->
+      <div id="new-swap-form" style="background:#F0F7FF;border:1.5px solid #BFDBFE;border-radius:14px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;">🔄 Request Break Swap</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <select id="sw-my-break" class="fld" style="font-size:12px;">
+            <option value="">— Select your break slot —</option>
+          </select>
+          <select id="sw-colleague" class="fld" style="font-size:12px;">
+            <option value="">— Select colleague —</option>
+          </select>
+          <button onclick="submitNewSwapRequest()" 
+            style="padding:10px;border-radius:10px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">
+            Send Swap Request ✓
+          </button>
+        </div>
+      </div>
       <div id="pending-swaps-list">
         <div style="text-align:center;padding:24px;color:var(--t2);font-size:13px;">Loading swaps...</div>
       </div>
@@ -615,7 +631,7 @@ function switchTab(t){
     document.getElementById('pane-'+id).style.display=id===t?'':'none';
     const b=document.getElementById('tab-'+id);if(b)b.classList.toggle('active',id===t);
   });
-  if(t==='swaps')renderSwapRequests();
+  if(t==='swaps'){renderSwapRequests();populateNewSwapForm();}
   if(t==='team')renderTeam();
   if(t==='history')renderHistory();
 }
@@ -690,6 +706,78 @@ function startLiveBanner(b){
     if (prog) prog.style.width = Math.min(100,(elapsed*1000/durMs)*100)+'%';
     if (elapsed > durMs/1000) el.style.color='#FCA5A5';
   }, 1000);
+}
+
+
+function populateNewSwapForm() {
+  // My booked breaks today
+  const myBreaks = myBreaksToday().filter(b =>
+    ['booked','active'].includes((b.status||'').toLowerCase())
+  );
+  const myBreakSel = document.getElementById('sw-my-break');
+  if (!myBreakSel) return;
+  myBreakSel.innerHTML = '<option value="">— Select your break slot —</option>' +
+    myBreaks.map(b => {
+      const slot = (b.breakStart||'').slice(0,5);
+      const disp = U.fmt12 ? U.fmt12(slot) : slot;
+      return `<option value="${b.id||b.ID}|${slot}">${disp} (${b.duration||15}min · ${b.status})</option>`;
+    }).join('');
+
+  // All other agents
+  const collSel = document.getElementById('sw-colleague');
+  if (!collSel) return;
+  const others = (data?.agents||[])
+    .filter(a => (a.n||a.name) !== user.name)
+    .sort((a,b) => (a.n||a.name).localeCompare(b.n||b.name));
+  
+  // Store colleague break info
+  window._swapColleagues2 = {};
+  allBreaksToday().filter(b => (b.agent||'') !== user.name).forEach(b => {
+    const nm = b.agent||'';
+    if (!window._swapColleagues2[nm]) window._swapColleagues2[nm] = [];
+    window._swapColleagues2[nm].push((b.breakStart||'').slice(0,5));
+  });
+
+  collSel.innerHTML = '<option value="">— Select colleague —</option>' +
+    others.map(a => {
+      const nm = a.n||a.name;
+      const slots = (window._swapColleagues2[nm]||[]);
+      const info  = slots.length ? slots.map(s => U.fmt12?U.fmt12(s):s).join(', ') : 'no break';
+      return `<option value="${nm}">${nm} — ${info}</option>`;
+    }).join('');
+}
+
+async function submitNewSwapRequest() {
+  const myVal  = document.getElementById('sw-my-break')?.value;
+  const toName = document.getElementById('sw-colleague')?.value;
+  if (!myVal)  return U.toast('Select your break slot','warn');
+  if (!toName) return U.toast('Select a colleague','warn');
+
+  const [myBreakId, mySlot] = myVal.split('|');
+  const theirSlots = window._swapColleagues2?.[toName]||[];
+  const theirSlot  = theirSlots[0]||'';
+
+  try {
+    await API.submitSwap({
+      id:          'SW-' + Date.now(),
+      from:        user.name,
+      to:          toName,
+      date:        today,
+      shiftFrom:   mySlot,
+      shiftTo:     theirSlot,
+      fromBreakId: myBreakId,
+      toBreakId:   '',
+      fromSlot:    mySlot,
+      toSlot:      theirSlot,
+      reason:      `Break swap request: ${U.fmt12?U.fmt12(mySlot):mySlot} ↔ ${theirSlot?U.fmt12?U.fmt12(theirSlot):theirSlot:'open'}`
+    });
+    U.toast('Swap request sent to ' + toName + ' ✓','ok');
+    document.getElementById('sw-my-break').value = '';
+    document.getElementById('sw-colleague').value = '';
+    API.clearCache('getAll');
+  } catch(e) {
+    U.toast('Failed to send swap request','err');
+  }
 }
 
 function renderSwapRequests() {
