@@ -711,7 +711,7 @@ function renderWeek(elId) {
   const me = agents.find(a => a.n === user.name)
           || agents.find(a => (a.n||'').trim().toLowerCase() === _uname);
   const week   = U.getWeekDates(today);
-  const DAYS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   document.getElementById(elId).innerHTML = week.map((date, i) => {
     const idx  = dates.indexOf(date);
@@ -729,7 +729,7 @@ function renderWeek(elId) {
     }
     const cls = isT ? 'today' : isOff ? 'woff' : '';
     return `<div class="wday ${cls}">
-      <div class="wd-name">${DAYS[i]}</div>
+      <div class="wd-name">${DAY_NAMES[d.getDay()]}</div>
       <div class="wd-num">${d.getDate()}</div>
       <div class="wd-shift" style="color:${isT?'rgba(255,255,255,.8)':clr}">${isW&&isOff?'—':short}</div>
     </div>`;
