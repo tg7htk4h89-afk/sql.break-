@@ -78,7 +78,8 @@ var API = (() => {
       let d = JSON.parse(raw);
       if (Array.isArray(d)) d = d[0] || {};
       if (!d.agents?.length) throw new Error('Schedule unavailable');
-      return toCache('getAll', d);
+      toCache('getAll', d);
+      return d;
     },
 
     /* ── Clear cache (call on logout or manual refresh) ── */
