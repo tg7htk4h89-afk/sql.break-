@@ -119,7 +119,7 @@ const isMgmt = Auth.isManagement();
 
 async function init(force = false) {
   try {
-    allData = await API.getAll();
+    allData = await API.getAll(true); // attendance always needs fresh data
     const _ld = document.getElementById('att-loading'); if(_ld)_ld.style.display='none';
     if (isMgmt) {
       document.getElementById('att-stats').style.display = '';
@@ -492,7 +492,7 @@ function renderAttHistory() {
     </div>`).join('');
 }
 
-init();
+init(true);
 </script>
 </body>
 </html>
