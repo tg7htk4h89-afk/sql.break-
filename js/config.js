@@ -30,6 +30,7 @@ var CFG = {
     SWAPS:             'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-swap',
     KPI:               'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-kpi',
     SCHED_REQ:         'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-schedrequest',
+    APPROVE_SCHEDREQ: 'https://n8n.kib-cc-wfm.com/webhook/kib-v2-approve-schedrequest',
     MOOD_GET:        'https://n8n.kib-cc-wfm.com/webhook/kib-v2-mood-get',
     MOOD_SUBMIT:     'https://n8n.kib-cc-wfm.com/webhook/kib-v2-mood-submit',
     LEAVES:          'https://n8n.kib-cc-wfm.com/webhook/kib-v2-submit-leave',
