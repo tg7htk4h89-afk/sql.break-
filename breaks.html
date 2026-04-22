@@ -254,7 +254,7 @@ function renderTeam(){
 
 async function mgmtEnd(id,name){
   if(!confirm(`End ${name}'s break?`))return;
-  try{await API.saveBreaks({action:'endBreak',id,agent:name});const freshBreaks=await API.refreshBreaks(); if(freshBreaks)data.breakLog=freshBreaks;
+  try{await API.saveBreaks({action:'end',id,agent:name});const freshBreaks=await API.refreshBreaks(); if(freshBreaks)data.breakLog=freshBreaks;
     Nav.setSyncStatus(true);renderTeam();U.toast(`${name}'s break ended ✓`,'ok');}
   catch(e){U.toast('Failed','err');}
 }
@@ -337,7 +337,7 @@ async function bookBreak(){
     voicemailOverride: _vmChecked, dept: user.dept||''
   };
   try{
-    await API.saveBreaks({action:'saveBreak', break:bk, ...bk});
+    await API.saveBreaks({action:'book', break:bk, ...bk});
     if(!data.breakLog) data.breakLog=[];
     data.breakLog.push(bk);
     bookedBreak=bk;
@@ -356,7 +356,7 @@ async function endBreak(){
   if(!activeBreak)return;
   if(!confirm('End your break now?'))return;
   try{
-    await API.saveBreaks({action:'endBreak',id:activeBreak.id,agent:user.name});
+    await API.saveBreaks({action:'end',id:activeBreak.id,agent:user.name});
     activeBreak=null;if(timerInt)clearInterval(timerInt);
     document.getElementById('live-banner').classList.remove('show');
     document.getElementById('swap-sec').style.display='none';
@@ -386,7 +386,7 @@ async function cancelBookedBreak(breakId) {
   renderBalance();
   buildSlotGrid();
   try {
-    await API.saveBreaks({ action: 'cancelBreak', id: breakId, agent: user.name });
+    await API.saveBreaks({ action: 'cancel', id: breakId, agent: user.name });
     // cache preserved - breaks use refreshBreaks()
     API.clearCache('getAll'); // will refresh on next load
     renderBalance(); buildSlotGrid(); renderBookedBanner();
@@ -524,7 +524,7 @@ async function startBookedBreak(breakId) {
   try {
     bk.status    = 'active';
     bk.startedAt = new Date().toISOString();
-    await API.saveBreaks({ action: 'startBreak', break: bk, ...bk, agent: bk.agent });
+    await API.saveBreaks({ action: 'start', break: bk, ...bk, agent: bk.agent });
     activeBreak  = bk;
     bookedBreak  = null;
     startLiveBanner(bk);
@@ -761,7 +761,7 @@ async function swapBreak() {
   try {
     // Submit swap request — agent B needs to accept
     await API.saveBreaks({
-      action:       'saveBreak',
+      action:       'book',
       break: {
         id:          'SWAP-' + Date.now(),
         agent:       user.name,
@@ -785,7 +785,7 @@ async function swapBreak() {
     });
 
     // Send notification to target agent
-    await API.saveBreaks({ action: 'cancelBreak', id: myBreak.id||myBreak.ID });
+    await API.saveBreaks({ action: 'cancel', id: myBreak.id||myBreak.ID });
 
     U.toast(`Swap request sent to ${target.agent} ✓`, 'ok');
     // cache preserved - breaks use refreshBreaks()
