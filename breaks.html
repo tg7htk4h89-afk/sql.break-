@@ -816,6 +816,25 @@ async function swapBreak() {
 }
 
 init(true);
+
+// Auto-refresh breaks every 60 seconds so slot grid stays live
+setInterval(async () => {
+  try {
+    const fresh = await fetch(CFG.N8N.GET_ALL, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    });
+    if (!fresh.ok) return;
+    const raw = await fresh.json();
+    const d = Array.isArray(raw) ? raw[0] : raw;
+    if (d?.breakLog) {
+      data.breakLog = d.breakLog;
+      buildSlotGrid();
+      renderTeam();
+      renderBalance();
+      detectActiveBreak();
+    }
+  } catch(e) {}
+}, 60000);
 </script>
 </body>
 </html>
