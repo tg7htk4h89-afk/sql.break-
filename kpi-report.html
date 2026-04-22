@@ -74,7 +74,7 @@
 
     <!-- Filters -->
     <div class="report-filter-card">
-      <div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📊 KPI Report Filters</div>
+      <div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">KPI Report Filters</div>
       <div class="filter-row">
         <div><label class="fld-label">From Date</label><input type="date" class="fld" id="f-from"></div>
         <div><label class="fld-label">To Date</label><input type="date" class="fld" id="f-to"></div>
@@ -105,7 +105,7 @@
         <label class="fld-label">Agent Name</label>
         <input type="text" class="fld" id="f-agent" placeholder="Search agent…">
       </div>
-      <button class="btn btn-navy btn-block" id="btn-run" onclick="runReport()">🔍 Run Report</button>
+      <button class="btn btn-navy btn-block" id="btn-run" onclick="runReport()">Run Report</button>
     </div>
 
     <!-- Summary -->
@@ -119,12 +119,12 @@
     <!-- Approver leaderboard -->
     <div class="rpt-card" id="approver-card" style="display:none;">
       <div class="rpt-card-hdr">
-        <div class="rpt-card-icon" style="background:rgba(200,149,42,.1);">🏆</div>
+        <div class="rpt-card-icon" style="background:rgba(200,149,42,.1);"></div>
         <div style="flex:1;">
-          <div class="rpt-card-title">Top Approvers</div>
+          <div class="rpt-card-title">Approval Leaders</div>
           <div class="rpt-card-sub" id="mtd-lbl">Month-to-Date</div>
         </div>
-        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportApprovers()">⬇ Export</button>
+        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportApprovers()">Export</button>
       </div>
       <div id="approver-list"></div>
     </div>
@@ -132,12 +132,12 @@
     <!-- KPI Records -->
     <div class="rpt-card" id="records-card" style="display:none;margin-bottom:90px;">
       <div class="rpt-card-hdr">
-        <div class="rpt-card-icon" style="background:rgba(13,92,166,.08);">📋</div>
+        <div class="rpt-card-icon" style="background:rgba(13,92,166,.08);"></div>
         <div style="flex:1;">
           <div class="rpt-card-title">KPI Records</div>
           <div class="rpt-card-sub" id="rec-count">—</div>
         </div>
-        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn" style="padding:6px 12px;font-size:11px;" onclick="exportCSV()">CSV</button>
       </div>
       <div id="rec-list"></div>
     </div>
@@ -196,7 +196,7 @@ async function runReport() {
   } catch(e) {
     U.toast('Failed: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = '🔍 Run Report';
+    btn.disabled = false; btn.textContent = 'Run Report';
     document.getElementById('rpt-loading').style.display = 'none';
   }
 }
@@ -217,14 +217,14 @@ function renderReport(data) {
   document.getElementById('approver-list').innerHTML = data.approverStats.length
     ? data.approverStats.map((a, i) => `
       <div class="approver-row">
-        <div class="approver-rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+        <div class="approver-rank">${i+1}</div>
         <div class="approver-info">
           <div class="approver-name">${a.name}</div>
           <div class="type-pills">
-            ${a.issue      ? `<span class="tp tp-issue">💻 ${a.issue}</span>`      : ''}
-            ${a.permission ? `<span class="tp tp-permission">🚪 ${a.permission}</span>` : ''}
-            ${a.extra      ? `<span class="tp tp-extra">☕ ${a.extra}</span>`      : ''}
-            ${a.meeting    ? `<span class="tp tp-meeting">📋 ${a.meeting}</span>`  : ''}
+            ${a.issue      ? `<span class="tp tp-issue">${a.issue} Issue</span>`      : ''}
+            ${a.permission ? `<span class="tp tp-permission">${a.permission} Perm</span>` : ''}
+            ${a.extra      ? `<span class="tp tp-extra">${a.extra} Break</span>`      : ''}
+            ${a.meeting    ? `<span class="tp tp-meeting">${a.meeting} Mtg</span>`  : ''}
           </div>
           <div class="approver-bar-wrap"><div class="approver-bar-fill" style="width:${Math.round(a.total/maxT*100)}%"></div></div>
         </div>
@@ -240,7 +240,7 @@ function renderReport(data) {
         const stCls = r.status==='approved'?'status-approved':r.status==='rejected'?'status-rejected':'status-pending';
         return `<div class="rec-row">
           <div class="rec-row-top">
-            <div style="width:32px;height:32px;border-radius:9px;background:${IBGS[r.kpi_type]};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">${ICONS[r.kpi_type]||'📋'}</div>
+            <div style="width:32px;height:32px;border-radius:9px;background:${IBGS[r.kpi_type]};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--t3);flex-shrink:0;">${(r.kpi_type||"").slice(0,3).toUpperCase()}</div>
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span class="rec-agent">${r.agent||'—'}</span>
@@ -251,8 +251,8 @@ function renderReport(data) {
             </div>
           </div>
           <div class="rec-meta">
-            📅 ${r.kpi_date||''}  ·  👥 ${r.team||r.dept||''}
-            ${r.approved_by ? `  ·  <span class="rec-approver">✓ ${r.approved_by}</span>` : ''}
+            ${r.kpi_date||''}  ·  ${r.team||r.dept||''}
+            ${r.approved_by ? `  ·  <span class="rec-approver">${r.approved_by}</span>` : ''}
           </div>
         </div>`;
       }).join('')
