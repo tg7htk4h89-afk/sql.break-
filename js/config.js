@@ -105,23 +105,18 @@ var CFG = {
   NAV: {
     agent: [
       { id: 'home',     icon: '🏠', label: 'Home',     page: 'home.html'     },
-      { id: 'schedule', icon: '🗓', label: 'Schedule', page: 'schedule.html' },
       { id: 'breaks',   icon: '☕', label: 'Breaks',   page: 'breaks.html'   },
       { id: 'kpi',      icon: '📊', label: 'KPI',      page: 'kpi.html'      },
       { id: 'mood',     icon: '😊', label: 'Mood',     page: 'mood.html'     }
     ],
     management: [
       { id: 'home',          icon: '🏠', label: 'Home',     page: 'home.html'          },
-      { id: 'schedule',      icon: '🗓', label: 'Schedule', page: 'schedule.html'      },
-      { id: 'schedule-edit', icon: '📝', label: 'Editor',   page: 'schedule-edit.html' },
       { id: 'requests',      icon: '📋', label: 'Requests', page: 'requests.html'      },
       { id: 'kpi-report',    icon: '📊', label: 'KPI Rpt',  page: 'kpi-report.html'    },
       { id: 'mood',          icon: '😊', label: 'Mood',     page: 'mood.html'          }
     ],
     wfm: [
       { id: 'home',          icon: '🏠', label: 'Home',    page: 'home.html'          },
-      { id: 'schedule-edit', icon: '📅', label: 'Editor',  page: 'schedule-edit.html' },
-      { id: 'attendance',    icon: '✅', label: 'Attend',  page: 'attendance.html'    },
       { id: 'requests',      icon: '📋', label: 'Requests',page: 'requests.html'      },
       { id: 'kpi-report',    icon: '📊', label: 'KPI Rpt', page: 'kpi-report.html'    },
       { id: 'mood',          icon: '😊', label: 'Mood',    page: 'mood.html'          }
