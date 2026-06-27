@@ -348,12 +348,14 @@ async function bookBreak(){
   const used = myBreaksToday().reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
   if(used+selDurVal>DAILY_MIN) return U.toast(`Only ${DAILY_MIN-used} min remaining`,'warn');
 
-  // Must not book more than 60 min in advance
-  const nowMin  = new Date().getHours()*60 + new Date().getMinutes();
+  // Must not book more than 60 min in advance (use Kuwait time like rest of app)
+  const nowMin  = U.toMin(U.nowHHMM());
   const slotMin = U.toMin(selSlot);
-  const diff    = slotMin - nowMin;
-  if (diff > 60) return U.toast('Cannot book more than 1 hour in advance','warn');
-  if (diff < -5) return U.toast('This slot has already passed','warn');
+  let   diff    = slotMin - nowMin;
+  // Handle midnight wrap (e.g. slot 00:15 when now is 23:50)
+  if (diff < -720) diff += 1440;
+  if (diff > 120) return U.toast('Cannot book more than 2 hours in advance','warn');
+  if (diff < -5)  return U.toast('This slot has already passed','warn');
 
   // Max 2 pending breaks
   const pending = (data?.breakLog||[]).filter(b=>
