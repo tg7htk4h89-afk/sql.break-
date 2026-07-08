@@ -366,6 +366,17 @@ async function bookBreak(){
 
   // Voicemail/capacity check
   const _vmChecked = document.getElementById('vm-cb')?.checked;
+
+  // CRITICAL: fetch fresh data right before booking to catch simultaneous bookings
+  const btnEarly = document.getElementById('book-btn');
+  if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = 'Checking…'; }
+  try {
+    const fr = await fetch(CFG.N8N.GET_ALL, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const fd = await fr.json();
+    const fresh = Array.isArray(fd) ? fd[0] : fd;
+    if (fresh?.breakLog) data.breakLog = fresh.breakLog;
+  } catch(e) {}
+
   // Check ALL slots the duration spans are available
   const slotsNeeded = Math.ceil(selDurVal / 15);
   let needsApproval = false;
@@ -373,7 +384,7 @@ async function bookBreak(){
     const checkSlot = U.fromMin(U.toMin(selSlot) + (i * 15));
     const _slotLog = (data?.breakLog||[]).filter(b=>
       U.normDate(b.date||b['Date'])===today &&
-      (b.status==='booked'||b.status==='active') &&
+      ['booked','active','pending_approval'].includes((b.status||b.Status||'').toLowerCase()) &&
       String(b.breakStart||b['Break Start']||'').slice(0,5)===checkSlot
     );
     const _regNow = _slotLog.filter(b=>!b.voicemailOverride).length;
