@@ -158,8 +158,8 @@
     <span id="ann-text"></span>
   </div>
 
-  <!-- HERO: Today's Shift -->
-  <div class="hero" id="hero">
+  <!-- HERO: Today's Shift (hidden from agents — schedule suspended) -->
+  <div class="hero" id="hero" style="display:none;">
     <div style="position:relative;z-index:1;">
       <div class="hero-label">Today's Shift · <span id="hero-dept">—</span></div>
       <div class="hero-shift" id="hero-shift">Loading…</div>
@@ -171,6 +171,18 @@
         </div>
         <span id="hero-times" style="font-size:12px;color:rgba(255,255,255,.4);"></span>
         <span id="hero-endin" style="font-size:11px;color:rgba(255,255,255,.35);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGENT-ONLY: neutral welcome banner replacing the shift hero -->
+  <div class="hero" id="hero-agent" style="display:none;">
+    <div style="position:relative;z-index:1;">
+      <div class="hero-label">Welcome</div>
+      <div class="hero-shift" id="hero-agent-name" style="font-size:24px;">—</div>
+      <div class="hero-date" id="hero-agent-date"></div>
+      <div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;">
+        Schedule view is temporarily suspended.<br>Use the buttons below for breaks &amp; requests.
       </div>
     </div>
   </div>
@@ -200,8 +212,23 @@
                    background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:800;
                    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
                    -webkit-tap-highlight-color:transparent;">
-            <span>▶</span> Start Break
+            <span>▶</span> Take Break
           </button>
+        </div>
+
+        <!-- Pending approval state (waiting for manager) -->
+        <div id="bc-pending" style="display:none;margin-top:4px;">
+          <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:13px;padding:11px 14px;">
+            <div style="font-size:10px;color:rgba(255,255,255,.55);margin-bottom:4px;">⏳ AWAITING APPROVAL</div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:6px;" id="bc-pending-msg">Manager approval requested</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5);" id="bc-pending-sub">Someone else is on break right now</div>
+            <button onclick="cancelPendingBreak()"
+              style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:none;
+                     background:rgba(255,255,255,.1);color:#fff;font-size:12px;font-weight:700;
+                     cursor:pointer;-webkit-tap-highlight-color:transparent;">
+              Cancel Request
+            </button>
+          </div>
         </div>
 
         <!-- Active break state -->
@@ -239,9 +266,9 @@
       <div id="info-list"></div>
     </div>
 
-    <!-- Week strip -->
-    <div class="sec">This Week</div>
-    <div class="week-strip" id="week-strip">
+    <!-- Week strip (HIDDEN — schedule suspended) -->
+    <div class="sec" id="sec-week" style="display:none;">This Week</div>
+    <div class="week-strip" id="week-strip" style="display:none;">
       <!-- skeleton -->
       <div class="wday woff"><div class="wd-name">—</div><div class="wd-num" style="color:transparent;">00</div><div class="wd-shift" style="color:transparent;">—</div></div>
       <div class="wday woff"><div class="wd-name">—</div><div class="wd-num" style="color:transparent;">00</div><div class="wd-shift" style="color:transparent;">—</div></div>
@@ -252,21 +279,18 @@
       <div class="wday woff"><div class="wd-name">—</div><div class="wd-num" style="color:transparent;">00</div><div class="wd-shift" style="color:transparent;">—</div></div>
     </div>
 
-    <!-- Upcoming schedule (next 5 working days) -->
-    <div class="sec">Upcoming Shifts</div>
-    <div class="card" style="margin-bottom:12px;">
+    <!-- Upcoming schedule (HIDDEN — schedule suspended) -->
+    <div class="sec" id="sec-upcoming" style="display:none;">Upcoming Shifts</div>
+    <div class="card" id="card-upcoming" style="display:none;margin-bottom:12px;">
       <div id="upcoming-list" style="padding:0 13px;">
-        <div class="skel" style="height:46px;border-radius:8px;margin:10px 0;"></div>
-        <div class="skel" style="height:46px;border-radius:8px;margin:10px 0;"></div>
-        <div class="skel" style="height:46px;border-radius:8px;margin:10px 0;"></div>
       </div>
     </div>
 
     <!-- Quick actions -->
     <div class="sec">Quick Actions</div>
     <div class="qa-grid" id="qa-grid-agent">
-      <a href="breaks.html"  class="qa-btn qa-teal"><div class="qa-icon">☕</div><div><div class="qa-label">Book Break</div><div class="qa-sub">View slots & balance</div></div></a>
-      <a href="schedule.html" class="qa-btn qa-navy"><div class="qa-icon">📅</div><div><div class="qa-label">My Schedule</div><div class="qa-sub">Full schedule & requests</div></div></a>
+      <a href="breaks.html"  class="qa-btn qa-teal"><div class="qa-icon">☕</div><div><div class="qa-label">Take Break</div><div class="qa-sub">On-demand · approval may apply</div></div></a>
+      <a href="schedule.html" class="qa-btn qa-navy" style="opacity:.45;"><div class="qa-icon">🔒</div><div><div class="qa-label">My Schedule</div><div class="qa-sub">Suspended</div></div></a>
       <a href="requests.html" class="qa-btn qa-purple"><div class="qa-icon">📋</div><div><div class="qa-label">Requests</div><div class="qa-sub">Leave, swaps & changes</div></div></a>
       <a href="notifications.html" class="qa-btn qa-amber"><div class="qa-icon">🔔</div><div><div class="qa-label">Notifications</div><div class="qa-sub">Alerts & approvals</div></div></a>
     </div>
@@ -347,30 +371,46 @@ async function init(force = false) {
   if (isMgmt) {
     document.getElementById('agent-section').style.display = 'none';
     document.getElementById('mgmt-section').style.display  = '';
+    document.getElementById('hero').style.display = '';        // management sees shift hero
+    document.getElementById('hero-agent').style.display = 'none';
     renderMgmtQA();
+  } else {
+    // Agents: hide shift hero, show neutral welcome
+    document.getElementById('hero').style.display = 'none';
+    const ha = document.getElementById('hero-agent');
+    if (ha) {
+      ha.style.display = '';
+      const nm = document.getElementById('hero-agent-name');
+      const dt = document.getElementById('hero-agent-date');
+      if (nm) nm.textContent = user.name || '—';
+      if (dt) {
+        const d = U.kuwaitNow();
+        dt.textContent = d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+      }
+    }
   }
 
   try {
     data = await API.getAll(true); // always fresh for live stats
     Nav.setSyncStatus(true);
-    renderHero();
     renderAnn();
     if (isMgmt) {
+      renderHero();
       renderMgmtStats();
       renderPending();
       renderWeek('week-strip-mgmt');
     } else {
+      // Agents: NO shift hero, NO week strip, NO upcoming shifts (schedule suspended)
       renderBreakCard();
       renderAlerts();
       renderInfoCards();
-      renderWeek('week-strip');
-      renderUpcoming();
       renderMyRequests();
     }
   } catch(e) {
     Nav.setSyncStatus(false);
     console.error('Home init error:', e);
-    document.getElementById('hero-shift').textContent = 'Connection error';
+    const hs = document.getElementById('hero-shift');
+    if (hs) hs.textContent = 'Connection error';
     // Auto-retry once after 4s
     if (!window._homeRetried) {
       window._homeRetried = true;
@@ -464,10 +504,16 @@ function renderBreakCard() {
   if (rem <= 0) card.style.background = 'linear-gradient(135deg,#7F1D1D,#DC2626)';
   else if (rem <= 15) card.style.background = 'linear-gradient(135deg,#92400E,#B45309)';
 
-  const active = bl.find(b => b.status === 'active');
+  const active  = bl.find(b => b.status === 'active');
+  const pending = bl.find(b => b.status === 'pending_approval');
+  const pendingRow  = document.getElementById('bc-pending');
+  const startRow    = document.getElementById('bc-start-row');
+  const activeRow   = document.getElementById('bc-active');
+
   if (active) {
-    document.getElementById('bc-start-row').style.display = 'none';
-    document.getElementById('bc-active').style.display    = '';
+    startRow.style.display   = 'none';
+    if (pendingRow) pendingRow.style.display = 'none';
+    activeRow.style.display  = '';
     const startTs = active.startedAt ? new Date(active.startedAt).getTime() : Date.now();
     if (timerInt) clearInterval(timerInt);
     timerInt = setInterval(() => {
@@ -477,36 +523,99 @@ function renderBreakCard() {
       const usedNow = used + elapsed/60;
       document.getElementById('bc-live-fill').style.width = Math.min(100,(usedNow/DAILY)*100)+'%';
     }, 1000);
-  } else {
-    document.getElementById('bc-active').style.display    = 'none';
-    document.getElementById('bc-start-row').style.display = rem > 0 ? '' : 'none';
+  } else if (pending) {
+    // Waiting for management approval
+    startRow.style.display  = 'none';
+    activeRow.style.display = 'none';
+    if (pendingRow) {
+      pendingRow.style.display = '';
+      const sub = document.getElementById('bc-pending-sub');
+      if (sub && pending.blockedBy) sub.textContent = `${pending.blockedBy} is on break — waiting for approval`;
+    }
     if (timerInt) { clearInterval(timerInt); timerInt = null; }
+  } else {
+    activeRow.style.display = 'none';
+    if (pendingRow) pendingRow.style.display = 'none';
+    startRow.style.display  = rem > 0 ? '' : 'none';
+    if (timerInt) { clearInterval(timerInt); timerInt = null; }
+  }
+}
+
+/* ── Cancel a pending approval request ──────────────────── */
+async function cancelPendingBreak() {
+  const pending = (data?.breakLog || []).find(b =>
+    b.agent === user.name && U.normDate(b.date) === today && b.status === 'pending_approval');
+  if (!pending) return;
+  pending.status = 'cancelled';
+  renderBreakCard();
+  try {
+    await API.saveBreaks({ action:'endBreak', id:pending.id, status:'cancelled' });
+    API.clearCache('getAll');
+    U.toast('Request cancelled','');
+  } catch(e) {
+    pending.status = 'pending_approval';
+    renderBreakCard();
+    U.toast('Failed to cancel','err');
   }
 }
 
 /* ── Start Break ───────────────────────────────────── */
 async function startBreak() {
   const btn = document.getElementById('btn-start-break');
-  if (btn) { btn.disabled=true; btn.innerHTML='⏳ Starting…'; }
+  if (btn) { btn.disabled=true; btn.innerHTML='⏳ Checking…'; }
   const now = U.kuwaitNow();
   const id  = 'BRK-'+Date.now()+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
   const startedAt = now.toISOString();
-  const fake = { id, agent:user.name, status:'active', date:today, startedAt, duration:0,
-    breakStart: U.pad(now.getHours())+':'+U.pad(now.getMinutes()) };
-  if (!data.breakLog) data.breakLog=[];
-  data.breakLog.push(fake);
-  renderBreakCard();
-  try {
-    await API.saveBreaks({ action:'saveBreak', break:{
-      id, agent:user.name, dept:user.dept||'', date:today,
-      breakStart:fake.breakStart, startedAt, status:'active', duration:0 }});
-    API.clearCache('getAll');
-    U.toast('Break started ✓','ok');
-  } catch(e) {
-    data.breakLog = data.breakLog.filter(b=>b.id!==id);
+  const breakStart = U.pad(now.getHours())+':'+U.pad(now.getMinutes());
+
+  // ── CONCURRENCY CHECK (1 active break globally across the whole CC) ──
+  const bl = data?.breakLog || [];
+  const activeNow = bl.filter(b =>
+    (b.status === 'active') &&
+    U.normDate(b.date || b.Date) === today &&
+    (b.agent || b.Agent) !== user.name
+  );
+
+  if (activeNow.length === 0) {
+    // === Path A: no one on break → start immediately ===
+    const fake = { id, agent:user.name, status:'active', date:today, startedAt, duration:0, breakStart };
+    if (!data.breakLog) data.breakLog=[];
+    data.breakLog.push(fake);
     renderBreakCard();
-    U.toast('Failed to start break','err');
-    if(btn){btn.disabled=false;btn.innerHTML='<span>▶</span> Start Break';}
+    try {
+      await API.saveBreaks({ action:'saveBreak', break:{
+        id, agent:user.name, dept:user.dept||'', date:today,
+        breakStart, startedAt, status:'active', duration:0 }});
+      API.clearCache('getAll');
+      U.toast('Break started ✓','ok');
+    } catch(e) {
+      data.breakLog = data.breakLog.filter(b=>b.id!==id);
+      renderBreakCard();
+      U.toast('Failed to start break','err');
+      if(btn){btn.disabled=false;btn.innerHTML='<span>▶</span> Take Break';}
+    }
+  } else {
+    // === Path B: someone else on break → request management approval ===
+    const onBreakName = activeNow[0].agent || activeNow[0].Agent || 'a colleague';
+    const fake = { id, agent:user.name, status:'pending_approval', date:today,
+                   startedAt:null, requestedAt: startedAt, duration:0, breakStart,
+                   blockedBy: onBreakName };
+    if (!data.breakLog) data.breakLog=[];
+    data.breakLog.push(fake);
+    renderBreakCard();
+    try {
+      await API.saveBreaks({ action:'saveBreak', break:{
+        id, agent:user.name, dept:user.dept||'', date:today,
+        breakStart, requestedAt: startedAt, status:'pending_approval',
+        blockedBy: onBreakName, duration:0 }});
+      API.clearCache('getAll');
+      U.toast(`Approval requested — ${onBreakName} is already on break`,'info');
+    } catch(e) {
+      data.breakLog = data.breakLog.filter(b=>b.id!==id);
+      renderBreakCard();
+      U.toast('Failed to send approval request','err');
+      if(btn){btn.disabled=false;btn.innerHTML='<span>▶</span> Take Break';}
+    }
   }
 }
 
