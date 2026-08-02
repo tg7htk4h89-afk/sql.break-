@@ -68,40 +68,79 @@
     </div>
 
     <div class="tab-bar">
-      <button class="tab-item active" id="tab-book"    onclick="switchTab('book')">☕ Book Break</button>
-      <button class="tab-item"        id="tab-swaps"   onclick="switchTab('swaps')">🔄 Swaps <span id="swap-badge" style="display:none;background:#EF4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:900;margin-left:2px;"></span></button>
-      <button class="tab-item"        id="tab-team"    onclick="switchTab('team')">👥 Team</button>
-      <button class="tab-item"        id="tab-history" onclick="switchTab('history')">🕓 History</button>
+      <button class="tab-item active" id="tab-book"      onclick="switchTab('book')">☕ Take Break</button>
+      <button class="tab-item"        id="tab-approvals" onclick="switchTab('approvals')" style="display:none;">✅ Approvals <span id="appr-badge" style="display:none;background:#EF4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:900;margin-left:2px;"></span></button>
+      <button class="tab-item"        id="tab-team"      onclick="switchTab('team')" style="display:none;">👥 On Break</button>
+      <button class="tab-item"        id="tab-history"   onclick="switchTab('history')">🕓 History</button>
     </div>
 
     <div id="pane-book">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Select Break Slot</div>
-          <span class="text-sm text-muted" id="date-lbl"></span>
-        </div>
-        <div class="card-body">
-          <div id="slot-loading" style="text-align:center;padding:16px;color:var(--t3);"><div class="kib-spin" style="margin:0 auto 8px;"></div>Loading slots…</div>
-          <div class="slot-grid" id="slot-grid" style="display:none;"></div>
-          <div class="sec-hdr">Duration</div>
-          <div class="dur-row">
-            <button class="dur-btn sel" onclick="selDurFn(15,this)">15 min</button>
-            <button class="dur-btn"     onclick="selDurFn(30,this)">30 min</button>
+      <!-- Status card: idle / pending / active -->
+      <div class="card" id="card-break-status">
+        <div class="card-body" style="text-align:center;padding:24px 18px;">
+
+          <!-- IDLE state — Take Break button -->
+          <div id="state-idle">
+            <div style="font-size:48px;margin-bottom:8px;">☕</div>
+            <div style="font-size:18px;font-weight:800;color:var(--t1);margin-bottom:6px;">Take a Break</div>
+            <div style="font-size:13px;color:var(--t3);margin-bottom:22px;line-height:1.5;">
+              On-demand · no schedule required<br>
+              <span style="font-size:11px;color:var(--t3);">If a colleague is on break, management approval is required.</span>
+            </div>
+            <button class="btn btn-navy btn-block" id="btn-take-break" onclick="takeBreak()" style="font-size:15px;font-weight:800;padding:14px;">
+              ▶ Take Break Now
+            </button>
+            <div id="who-on-break" style="margin-top:12px;font-size:12px;color:var(--amber-dark);display:none;"></div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:var(--r);border:1px solid var(--border);">
-            <input type="checkbox" id="vm-cb" style="width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;">
-            <label for="vm-cb" style="font-size:13px;font-weight:600;color:var(--t1);cursor:pointer;">📞 Handle voicemail during break</label>
+
+          <!-- PENDING state — waiting for management approval -->
+          <div id="state-pending" style="display:none;">
+            <div style="font-size:48px;margin-bottom:8px;">⏳</div>
+            <div style="font-size:18px;font-weight:800;color:var(--t1);margin-bottom:6px;">Awaiting Approval</div>
+            <div style="font-size:13px;color:var(--t3);margin-bottom:6px;" id="pending-msg">Manager approval requested</div>
+            <div style="font-size:12px;color:var(--t3);margin-bottom:22px;" id="pending-sub">—</div>
+            <button class="btn btn-block" onclick="cancelMyPending()" style="background:var(--bg);color:var(--t1);border:1.5px solid var(--border);font-size:14px;">
+              Cancel Request
+            </button>
           </div>
-          <button class="btn btn-navy btn-block" id="book-btn" onclick="bookBreak()" disabled>Book Break</button>
-          <div class="info-box amber" id="bal-warn" style="display:none;margin-top:10px;"></div>
+
+          <!-- ACTIVE state — break in progress -->
+          <div id="state-active" style="display:none;">
+            <div style="font-size:48px;margin-bottom:8px;">🟢</div>
+            <div style="font-size:13px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Break in Progress</div>
+            <div id="active-timer" style="font-size:42px;font-weight:900;color:var(--navy);font-feature-settings:'tnum';margin-bottom:18px;">00:00</div>
+            <button class="btn btn-block" onclick="endMyBreak()" style="background:#DC2626;color:#fff;font-size:15px;font-weight:800;padding:14px;">
+              ■ End Break
+            </button>
+          </div>
+
         </div>
       </div>
-      <div id="swap-sec" style="display:none;">
-        <div class="sec-hdr">Swap Break</div>
-        <div class="card"><div class="card-body">
-          <div class="form-group"><label class="fld-label">Swap with colleague</label><select class="fld" id="swap-coll"><option value="">— Select —</option></select></div>
-          <button class="btn btn-teal btn-block" onclick="swapBreak()">🔄 Request Swap</button>
-        </div></div>
+
+      <!-- Today's breaks summary (read-only info for the agent) -->
+      <div class="card" style="margin-top:12px;">
+        <div class="card-header">
+          <div class="card-title">My Breaks Today</div>
+        </div>
+        <div class="card-body">
+          <div id="today-breaks-list" style="font-size:13px;color:var(--t2);">
+            <div style="text-align:center;padding:14px 0;color:var(--t3);">No breaks taken yet today.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ APPROVALS PANE (management only) ══ -->
+    <div id="pane-approvals" style="display:none;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Pending Break Approvals</div>
+        </div>
+        <div class="card-body">
+          <div id="approvals-list">
+            <div style="text-align:center;padding:18px 0;color:var(--t3);font-size:13px;">No pending requests.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -130,24 +169,11 @@
     </div>
 
     <div id="pane-team" style="display:none;">
-      <div class="stat-grid">
-        <div class="stat-card c-amber"><div class="stat-num" id="t-live">0</div><div class="stat-label">On Break</div></div>
-        <div class="stat-card c-navy"><div class="stat-num" id="t-total">0</div><div class="stat-label">Today Total</div></div>
-        <div class="stat-card c-green"><div class="stat-num" id="t-free">0</div><div class="stat-label">Free Slots</div></div>
-        <div class="stat-card c-teal"><div class="stat-num" id="t-min">0</div><div class="stat-label">Team Min Left</div></div>
-      </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">Currently On Break</div><button class="btn btn-xs btn-outline" onclick="dlCSV()">⬇ Export</button></div>
-        <!-- Pending Approval (management only) -->
-    <div id="pending-approval-card" style="display:none;background:var(--white);border:1.5px solid #FDE68A;border-radius:14px;margin-bottom:10px;overflow:hidden;">
-      <div style="padding:10px 14px;background:#FFFBEB;border-bottom:1px solid #FDE68A;font-size:11px;font-weight:800;color:#B45309;">Pending Break Approvals</div>
-      <div id="pending-approval-list"></div>
-    </div>
-    <div id="live-list"></div>
-      </div>
-      <div class="card" style="margin-top:8px;">
-        <div class="card-header"><div class="card-title">All Breaks Today</div></div>
-        <div id="all-today"></div>
+        <div class="card-header">
+          <div class="card-title">Currently On Break</div>
+        </div>
+        <div id="team-list"></div>
       </div>
     </div>
 
@@ -169,40 +195,19 @@
 <script>/* v20260414-2135 */
 if(!Auth.guard())throw 0;
 const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
-let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=1;
+let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
 Nav.init('breaks');
 document.getElementById('user-strip-wrap').innerHTML=Nav.renderUserStrip();
-document.getElementById('date-lbl').textContent=U.fmtDisplay(today);
+const _dlb = document.getElementById('date-lbl');
+if (_dlb) _dlb.textContent = U.fmtDisplay(today);
 
 function buildSlotGrid(){
-  // Breaks are NOT linked to schedule — show full working-day slots for everyone
-  // Window: 07:00 → 00:00 (covers all shifts)
-  let startMin=U.toMin('07:00'), endMin=U.toMin('23:45');
-  const slots=[],nowMin=U.toMin(U.nowHHMM()),all=allBreaksToday();
-  for(let m=startMin;m<=endMin;m+=15)slots.push(U.fromMin(m));
-  document.getElementById('slot-loading').style.display='none';
-  const grid=document.getElementById('slot-grid');grid.style.display='';
-  if(!slots.length){grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--t3);">No slots available</div>`;return;}
-  grid.innerHTML=slots.map(t=>{
-    const inSlot=all.filter(b=>(b.breakStart||b['Break Start']||'').slice(0,5)===t.slice(0,5));
-    const mine=inSlot.find(b=>b.agent===user.name||b.Agent===user.name);
-    const cnt=inSlot.length;
-    const isVoice=(user.role||'').toLowerCase().includes('voice')||(user.dept||user.department||'').toLowerCase().includes('voice');
-    const myLimit=isVoice?MAX_CON+1:MAX_CON;
-    const full=cnt>=myLimit&&!mine;
-    const slotMin=U.toMin(t),passed=(slotMin%1440)<(nowMin%1440)-5&&!mine;
-    let cls='',cntText=`${cnt}/${isVoice?MAX_CON+1:MAX_CON}`;
-    if(mine){cls='mine';cntText='✓ Mine';}
-    else if(full){cls='full';cntText='Full';}
-    else if(passed){cls='blocked';cntText='Passed';}
-    else if(cnt>0)cls='partial';
-    const clickable=!mine&&!full&&!passed;
-    return `<div class="slot ${cls}" id="s-${t.replace(':','-')}" onclick="${clickable?`pickSlot('${t}',this)`:''}" >
-      <div class="slot-time">${U.fmt12(t)}</div><div class="slot-cnt">${cntText}</div></div>`;
-  }).join('');
+  /* Slot-based booking removed — breaks are on-demand.
+     Kept as a no-op so any legacy caller still works. */
+  return;
 }
 
-function renderTeam(){
+function renderTeam(){ return renderTeamOnBreak && renderTeamOnBreak(); /* old renderTeam gutted — use renderTeamOnBreak */
   const all=allBreaksToday(),active=all.filter(b=>(b.status||b.Status||'').toLowerCase()==='active');
   const nowMin=U.toMin(U.nowHHMM());
   U.se('t-live',active.length);U.se('t-total',all.length);
@@ -221,34 +226,6 @@ function renderTeam(){
     teamMin+=Math.max(0,DAILY_MIN-used);
   });
   U.se('t-min',teamMin);
-
-  // Show pending approval requests for management
-  const pendingApproval = allBreaksToday().filter(b =>
-    (b.status||b.Status||'').toLowerCase() === 'pending_approval'
-  );
-  const pendingEl = document.getElementById('pending-approval-list');
-  const pendingCard = document.getElementById('pending-approval-card');
-  if (pendingCard) pendingCard.style.display = pendingApproval.length ? '' : 'none';
-  if (pendingEl) {
-    if (pendingApproval.length) {
-      pendingEl.innerHTML = pendingApproval.map(b => {
-        const agent = b.agent||b.Agent||'';
-        const slot  = (b.breakStart||b['Break Start']||'').slice(0,5);
-        const dur   = b.duration||b.Duration||15;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border2);">
-          <div style="flex:1;">
-            <div style="font-size:12px;font-weight:700;">${agent}</div>
-            <div style="font-size:11px;color:var(--t3);">${slot} · ${dur}min</div>
-          </div>
-          <button onclick="approveBreak('${b.id||b.ID}')" style="padding:7px 14px;border-radius:9px;border:none;background:var(--teal);color:#fff;font-size:11px;font-weight:700;cursor:pointer;">Approve</button>
-          <button onclick="rejectBreak('${b.id||b.ID}')" style="padding:7px 14px;border-radius:9px;border:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;cursor:pointer;">Reject</button>
-        </div>`;
-      }).join('');
-      pendingEl.style.display = '';
-    } else {
-      pendingEl.style.display = 'none';
-    }
-  }
 
   const liveEl=document.getElementById('live-list');
   if(!active.length){
@@ -320,14 +297,14 @@ function renderHistory(){
   }).join('');
 }
 
-function pickSlot(t,el){
+function pickSlot(t,el){ return; /* slot/swap removed */
   document.querySelectorAll('.slot.sel').forEach(s=>s.classList.remove('sel'));
   el.classList.add('sel');selSlot=t;
   if(!activeBreak)document.getElementById('book-btn').disabled=false;
   checkBalWarn();
 }
 
-function selDurFn(val, el) {
+function selDurFn(val, el) { return; /* slot/swap removed */
   selDurVal = val;
   document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('sel'));
   el.classList.add('sel');
@@ -341,21 +318,12 @@ function selDurFn(val, el) {
 
 
 
-async function bookBreak(){
+async function bookBreak(){ return takeBreak(); /* old slot-based bookBreak gutted */
   if(!selSlot) return U.toast('Select a time slot','warn');
   if(activeBreak) return U.toast('You have an active break','warn');
 
   const used = myBreaksToday().reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
   if(used+selDurVal>DAILY_MIN) return U.toast(`Only ${DAILY_MIN-used} min remaining`,'warn');
-
-  // Must not book more than 60 min in advance (use Kuwait time like rest of app)
-  const nowMin  = U.toMin(U.nowHHMM());
-  const slotMin = U.toMin(selSlot);
-  let   diff    = slotMin - nowMin;
-  // Handle midnight wrap (e.g. slot 00:15 when now is 23:50)
-  if (diff < -720) diff += 1440;
-  if (diff > 120) return U.toast('Cannot book more than 2 hours in advance','warn');
-  if (diff < -5)  return U.toast('This slot has already passed','warn');
 
   // Max 2 pending breaks
   const pending = (data?.breakLog||[]).filter(b=>
@@ -366,39 +334,27 @@ async function bookBreak(){
 
   // Voicemail/capacity check
   const _vmChecked = document.getElementById('vm-cb')?.checked;
-
-  // CRITICAL: fetch fresh data right before booking to catch simultaneous bookings
-  const btnEarly = document.getElementById('book-btn');
-  if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = 'Checking…'; }
-  try {
-    const fr = await fetch(CFG.N8N.GET_ALL, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const fd = await fr.json();
-    const fresh = Array.isArray(fd) ? fd[0] : fd;
-    if (fresh?.breakLog) data.breakLog = fresh.breakLog;
-  } catch(e) {}
-
   // Check ALL slots the duration spans are available
   const slotsNeeded = Math.ceil(selDurVal / 15);
-  let needsApproval = false;
   for (let i = 0; i < slotsNeeded; i++) {
     const checkSlot = U.fromMin(U.toMin(selSlot) + (i * 15));
     const _slotLog = (data?.breakLog||[]).filter(b=>
       U.normDate(b.date||b['Date'])===today &&
-      ['booked','active','pending_approval'].includes((b.status||b.Status||'').toLowerCase()) &&
+      (b.status==='booked'||b.status==='active') &&
       String(b.breakStart||b['Break Start']||'').slice(0,5)===checkSlot
     );
     const _regNow = _slotLog.filter(b=>!b.voicemailOverride).length;
     const _vmNow  = _slotLog.filter(b=> b.voicemailOverride).length;
     if(_vmChecked && _vmNow>=1) return U.toast(`Voicemail slot ${checkSlot} already taken`,'warn');
-    if(!_vmChecked && _regNow>=1) needsApproval = true;  // slot has 1 → needs approval
-    if(!_vmChecked && _regNow>=2) return U.toast(`Slot ${checkSlot} is full`,'warn');
+    if(!_vmChecked && _regNow>=MAX_CON) return U.toast(`Slot ${checkSlot} is full — max ${MAX_CON} breaks`,'warn');
   }
+  const _slotLog = []; const _regNow=0; const _vmNow=0; // already checked above
   if(false) return U.toast('Slot full — max '+MAX_CON+' breaks','warn');
 
   const btn = document.getElementById('book-btn');
   btn.disabled=true; btn.textContent='Booking…';
 
-  // Build break slots — 15min = 1 slot, 30min = 2 slots (max 30min)
+  // Build break slots — 30min = 2 slots of 15min, 45min = 3, 60min = 4
   const slotsCount = Math.ceil(selDurVal / 15);
   const bks = [];
   for (let i = 0; i < slotsCount; i++) {
@@ -409,8 +365,7 @@ async function bookBreak(){
       date: today, Date: today,
       breakStart: slotTime, 'Break Start': slotTime,
       duration: 15, Duration: 15,
-      status: needsApproval ? 'pending_approval' : 'booked',
-      Status: needsApproval ? 'pending_approval' : 'booked',
+      status: 'booked', Status: 'booked',
       startedAt: '', 'Booked At': new Date().toISOString(),
       voicemailOverride: _vmChecked, dept: user.dept||''
     });
@@ -426,9 +381,7 @@ async function bookBreak(){
     renderBookedBanner();
     renderBalance(); buildSlotGrid();
     btn.disabled=false; btn.textContent='Book Break';
-    U.toast(needsApproval
-    ? 'Break request sent — awaiting management approval ⏳'
-    : 'Break booked ✓ — tap Start when ready','ok');
+    U.toast('Break booked ✓ — tap Start when ready','ok');
     // Fetch fresh breaks from server after 2s to confirm and sync
     setTimeout(async () => {
       try {
@@ -445,7 +398,7 @@ async function bookBreak(){
 }
 
 
-async function endBreak(){
+async function endBreak(){ return endMyBreak(); /* old endBreak gutted */
   if(!activeBreak)return;
   if(!confirm('End your break now?'))return;
   try{
@@ -461,7 +414,7 @@ async function endBreak(){
   }catch(e){U.toast('Failed to end break','err');}
 }
 
-function fillSwapColleagues(){
+function fillSwapColleagues(){ return; /* slot/swap removed */
   const sel=document.getElementById('swap-coll');
   (data?.agents||[]).filter(a=>(a.n||a.name)!==user.name).sort((a,b)=>(a.n||a.name).localeCompare(b.n||b.name))
     .forEach(a=>{const o=document.createElement('option');o.value=a.n||a.name;o.textContent=`${a.n||a.name} (${a.t||''})`;sel.appendChild(o);});
@@ -470,7 +423,7 @@ function fillSwapColleagues(){
 
 
 
-async function cancelBookedBreak(breakId) {
+async function cancelBookedBreak(breakId) { return; /* slot booking removed */
   if (!confirm('Cancel this break?')) return;
   const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
   if (!bk) return;
@@ -492,7 +445,7 @@ async function cancelBookedBreak(breakId) {
 }
 
 /* ── Swap Break (from booked state) ──────────────────── */
-function showSwapForBreak(breakId) {
+function showSwapForBreak(breakId) { return; /* slot/swap removed */
   const bk = getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId);
   if (!bk) return;
 
@@ -560,7 +513,7 @@ function showSwapForBreak(breakId) {
     </div>`;
 }
 
-async function submitSwapForBreak(breakId) {
+async function submitSwapForBreak(breakId) { return; /* slot/swap removed */
   const collRaw = document.getElementById('swap-inline-coll')?.value;
   if (!collRaw) return U.toast('Select a colleague', 'warn');
   const collIdx = parseInt(collRaw);
@@ -591,7 +544,7 @@ async function submitSwapForBreak(breakId) {
   }
 }
 
-function renderBookedBanner() {
+function renderBookedBanner() { return; /* booked-banner UI removed */
   // Get next upcoming booked break (earliest by breakStart time)
   const booked = getBreaks(today, user.name)
     .filter(b => (b.status||b.Status||'').toLowerCase() === 'booked')
@@ -645,7 +598,7 @@ function renderBookedBanner() {
 }
 
 
-async function startBookedBreak(breakId) {
+async function startBookedBreak(breakId) { return; /* slot booking removed */
   // Find the specific booked break by ID
   const bk = breakId
     ? getBreaks(today, user.name).find(b => (b.id||b.ID) === breakId && (b.status||b.Status||'').toLowerCase() === 'booked')
@@ -672,8 +625,19 @@ async function init(){
     Nav.setSyncStatus(true);
     const s=data?.settings||{};
     DAILY_MIN=parseInt(s.dailyMin||s.daily_min||60);
-    MAX_CON=parseInt(s.maxCon||s.max_con||1);
-    renderBalance();detectActiveBreak();buildSlotGrid();fillSwapColleagues();renderSwapRequests();
+    MAX_CON=parseInt(s.maxCon||s.max_con||2);
+
+    // Role-based tab visibility
+    const tabAppr = document.getElementById('tab-approvals');
+    const tabTeam = document.getElementById('tab-team');
+    if (isMgmt) {
+      if (tabAppr) tabAppr.style.display = '';
+      if (tabTeam) tabTeam.style.display = '';
+    }
+
+    renderBreakStatusCard();
+    renderTodayBreaks();
+    if (isMgmt) renderApprovals();
   }catch(e){
     console.error('Breaks load error:', e);
     if (!window._breaksRetried) {
@@ -687,13 +651,290 @@ async function init(){
 }
 
 function switchTab(t){
-  ['book','swaps','team','history'].forEach(id=>{
-    document.getElementById('pane-'+id).style.display=id===t?'':'none';
+  ['book','approvals','team','history'].forEach(id=>{
+    const pane = document.getElementById('pane-'+id);
+    if (pane) pane.style.display=id===t?'':'none';
     const b=document.getElementById('tab-'+id);if(b)b.classList.toggle('active',id===t);
   });
-  if(t==='swaps'){renderSwapRequests();populateNewSwapForm();}
-  if(t==='team')renderTeam();
-  if(t==='history')renderHistory();
+  if(t==='approvals' && isMgmt) renderApprovals();
+  if(t==='team') renderTeamOnBreak();
+  if(t==='history') renderHistory();
+}
+
+/* ──────────────────────────────────────────────────────────
+   NEW BREAK FLOW — on-demand with management approval
+   ────────────────────────────────────────────────────────── */
+
+function getActiveBreaksToday() {
+  return (data?.breakLog || data?.breaks || [])
+    .filter(b => U.normDate(b.date || b.Date) === today && (b.status||b.Status||'').toLowerCase() === 'active');
+}
+
+function getMyTodayBreak(statusList) {
+  const list = Array.isArray(statusList) ? statusList.map(s=>s.toLowerCase()) : [statusList.toLowerCase()];
+  return (data?.breakLog || data?.breaks || []).find(b =>
+    (b.agent||b.Agent) === user.name &&
+    U.normDate(b.date||b.Date) === today &&
+    list.includes((b.status||b.Status||'').toLowerCase())
+  );
+}
+
+function renderBreakStatusCard() {
+  const idle = document.getElementById('state-idle');
+  const pend = document.getElementById('state-pending');
+  const act  = document.getElementById('state-active');
+  const myActive  = getMyTodayBreak('active');
+  const myPending = getMyTodayBreak('pending_approval');
+
+  if (myActive) {
+    idle.style.display='none'; pend.style.display='none'; act.style.display='';
+    const startTs = myActive.startedAt ? new Date(myActive.startedAt).getTime() : Date.now();
+    if (window._activeTimerInt) clearInterval(window._activeTimerInt);
+    window._activeTimerInt = setInterval(() => {
+      const elapsed = Math.floor((Date.now()-startTs)/1000);
+      const m=Math.floor(elapsed/60), s=elapsed%60;
+      const el = document.getElementById('active-timer');
+      if (el) el.textContent = U.pad(m)+':'+U.pad(s);
+    }, 1000);
+    return;
+  }
+  if (myPending) {
+    idle.style.display='none'; pend.style.display=''; act.style.display='none';
+    const sub = document.getElementById('pending-sub');
+    if (sub && myPending.blockedBy) sub.textContent = `${myPending.blockedBy} is on break — waiting for management approval`;
+    if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
+    return;
+  }
+  // idle
+  idle.style.display=''; pend.style.display='none'; act.style.display='none';
+  const activeOthers = getActiveBreaksToday().filter(b => (b.agent||b.Agent) !== user.name);
+  const whoEl = document.getElementById('who-on-break');
+  if (whoEl) {
+    if (activeOthers.length) {
+      whoEl.style.display = '';
+      whoEl.textContent = `⚠️ ${activeOthers[0].agent||activeOthers[0].Agent} is on break — your request will need approval.`;
+    } else {
+      whoEl.style.display = 'none';
+    }
+  }
+  if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
+}
+
+function renderTodayBreaks() {
+  const myBreaks = (data?.breakLog || data?.breaks || [])
+    .filter(b => (b.agent||b.Agent) === user.name && U.normDate(b.date||b.Date) === today)
+    .sort((a,b) => new Date(a.startedAt||a.requestedAt||0) - new Date(b.startedAt||b.requestedAt||0));
+  const list = document.getElementById('today-breaks-list');
+  if (!list) return;
+  if (!myBreaks.length) {
+    list.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--t3);">No breaks taken yet today.</div>`;
+    return;
+  }
+  list.innerHTML = myBreaks.map(b => {
+    const st = (b.status||b.Status||'').toLowerCase();
+    const dur = b.duration || b.Duration || '—';
+    const startTs = b.startedAt || b.requestedAt;
+    const t = startTs ? new Date(startTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    const pill = st==='active' ? 'pill-teal' : st==='done' ? 'pill-gray' : st==='pending_approval' ? 'pill-amber' : st==='cancelled' ? 'pill-red' : 'pill-amber';
+    return `<div class="row-item" style="padding:9px 4px;">
+      <div class="row-icon" style="background:var(--bg);font-size:15px;">☕</div>
+      <div class="row-info"><div class="row-title">${t}</div>
+      <div class="row-meta">${dur===0?'—':dur+' min'}</div></div>
+      <span class="pill ${pill}">${st.replace('_',' ')}</span>
+    </div>`;
+  }).join('');
+}
+
+async function takeBreak() {
+  const btn = document.getElementById('btn-take-break');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Checking…'; }
+  const now = U.kuwaitNow();
+  const id  = 'BRK-'+Date.now()+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
+  const startedAt = now.toISOString();
+  const breakStart = U.pad(now.getHours())+':'+U.pad(now.getMinutes());
+  const activeOthers = getActiveBreaksToday().filter(b => (b.agent||b.Agent) !== user.name);
+
+  if (activeOthers.length === 0) {
+    // Start immediately
+    const rec = { id, agent:user.name, status:'active', date:today, startedAt, duration:0, breakStart };
+    if (!data.breakLog) data.breakLog=[];
+    data.breakLog.push(rec);
+    renderBreakStatusCard(); renderTodayBreaks();
+    try {
+      await API.saveBreaks({ action:'saveBreak', break:{
+        id, agent:user.name, dept:user.dept||'', date:today,
+        breakStart, startedAt, status:'active', duration:0 }});
+      API.clearCache('getAll');
+      U.toast('Break started ✓','ok');
+    } catch(e) {
+      data.breakLog = data.breakLog.filter(b => b.id !== id);
+      renderBreakStatusCard(); renderTodayBreaks();
+      if (btn) { btn.disabled = false; btn.innerHTML = '▶ Take Break Now'; }
+      U.toast('Failed to start break','err');
+    }
+  } else {
+    // Request approval
+    const blockedBy = activeOthers[0].agent || activeOthers[0].Agent;
+    const rec = { id, agent:user.name, status:'pending_approval', date:today,
+                  requestedAt: startedAt, duration:0, breakStart, blockedBy };
+    if (!data.breakLog) data.breakLog=[];
+    data.breakLog.push(rec);
+    renderBreakStatusCard(); renderTodayBreaks();
+    try {
+      await API.saveBreaks({ action:'saveBreak', break:{
+        id, agent:user.name, dept:user.dept||'', date:today,
+        breakStart, requestedAt: startedAt, status:'pending_approval', blockedBy, duration:0 }});
+      API.clearCache('getAll');
+      U.toast(`Approval requested — ${blockedBy} is on break`,'info');
+    } catch(e) {
+      data.breakLog = data.breakLog.filter(b => b.id !== id);
+      renderBreakStatusCard(); renderTodayBreaks();
+      if (btn) { btn.disabled = false; btn.innerHTML = '▶ Take Break Now'; }
+      U.toast('Failed to send approval request','err');
+    }
+  }
+}
+
+async function cancelMyPending() {
+  const my = getMyTodayBreak('pending_approval');
+  if (!my) return;
+  my.status = 'cancelled';
+  renderBreakStatusCard(); renderTodayBreaks();
+  try {
+    await API.saveBreaks({ action:'endBreak', id:my.id, status:'cancelled' });
+    API.clearCache('getAll');
+    U.toast('Request cancelled','');
+  } catch(e) {
+    my.status = 'pending_approval';
+    renderBreakStatusCard(); renderTodayBreaks();
+    U.toast('Failed to cancel','err');
+  }
+}
+
+async function endMyBreak() {
+  const my = getMyTodayBreak('active');
+  if (!my) return;
+  const endTs = new Date().toISOString();
+  const startTs = my.startedAt ? new Date(my.startedAt).getTime() : Date.now();
+  const mins = Math.max(1, Math.round((Date.now()-startTs)/60000));
+  my.status='done'; my.endedAt=endTs; my.duration=mins;
+  if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt=null; }
+  renderBreakStatusCard(); renderTodayBreaks();
+  try {
+    await API.saveBreaks({ action:'endBreak', id:my.id, endedAt:endTs, actualDuration:mins, duration:mins, status:'done' });
+    API.clearCache('getAll');
+    U.toast(`Break ended — ${mins} min`,'ok');
+  } catch(e) {
+    my.status='active';
+    renderBreakStatusCard();
+    U.toast('Failed to end break','err');
+  }
+}
+
+/* ─── Management: pending approvals ─────────────────────── */
+function renderApprovals() {
+  const list = document.getElementById('approvals-list');
+  const badge = document.getElementById('appr-badge');
+  if (!list) return;
+  const pending = (data?.breakLog || data?.breaks || [])
+    .filter(b => U.normDate(b.date||b.Date)===today && (b.status||b.Status||'').toLowerCase()==='pending_approval')
+    .sort((a,b) => new Date(a.requestedAt||a.startedAt||0) - new Date(b.requestedAt||b.startedAt||0));
+  if (badge) {
+    if (pending.length) { badge.style.display=''; badge.textContent=pending.length; }
+    else { badge.style.display='none'; }
+  }
+  if (!pending.length) {
+    list.innerHTML = `<div style="text-align:center;padding:18px 0;color:var(--t3);font-size:13px;">No pending requests.</div>`;
+    return;
+  }
+  list.innerHTML = pending.map(b => {
+    const ag = b.agent||b.Agent||'—';
+    const dept = b.dept||b.Dept||'';
+    const blocked = b.blockedBy || '—';
+    const requestedAt = b.requestedAt||b.startedAt;
+    const t = requestedAt ? new Date(requestedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    const id = b.id||b.ID;
+    return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-size:14px;font-weight:800;color:var(--t1);">${ag}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px;">${dept} · requested ${t}</div>
+        </div>
+        <span class="pill pill-amber">PENDING</span>
+      </div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:10px;">
+        ⚠️ Blocked by: <b>${blocked}</b>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-teal" style="flex:1;font-size:13px;padding:9px;" onclick="approveBreak('${id}','${ag.replace(/'/g,"\\'")}')">
+          ✓ Approve
+        </button>
+        <button class="btn" style="flex:1;font-size:13px;padding:9px;background:#DC2626;color:#fff;" onclick="rejectBreak('${id}','${ag.replace(/'/g,"\\'")}')">
+          ✕ Reject
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function approveBreak(id, agentName) {
+  const rec = (data?.breakLog||[]).find(b => (b.id||b.ID) === id);
+  if (!rec) return;
+  rec.status = 'active';
+  rec.startedAt = new Date().toISOString();
+  rec.approvedBy = user.name;
+  renderApprovals();
+  try {
+    await API.saveBreaks({ action:'saveBreak', break:{
+      id, agent:agentName, dept:rec.dept||rec.Dept||'', date:today,
+      breakStart:rec.breakStart, startedAt:rec.startedAt, status:'active',
+      approvedBy:user.name, duration:0 }});
+    API.clearCache('getAll');
+    U.toast(`${agentName}'s break approved ✓`,'ok');
+  } catch(e) {
+    rec.status='pending_approval'; rec.startedAt=null;
+    renderApprovals();
+    U.toast('Failed to approve','err');
+  }
+}
+
+async function rejectBreak(id, agentName) {
+  const rec = (data?.breakLog||[]).find(b => (b.id||b.ID) === id);
+  if (!rec) return;
+  rec.status = 'rejected';
+  rec.rejectedBy = user.name;
+  renderApprovals();
+  try {
+    await API.saveBreaks({ action:'endBreak', id, status:'rejected', rejectedBy:user.name });
+    API.clearCache('getAll');
+    U.toast(`${agentName}'s request rejected`,'');
+  } catch(e) {
+    rec.status='pending_approval';
+    renderApprovals();
+    U.toast('Failed to reject','err');
+  }
+}
+
+/* ─── Team view: who's currently on break ──────────────── */
+function renderTeamOnBreak() {
+  const teamList = document.getElementById('team-list');
+  if (!teamList) return;
+  const onBreak = getActiveBreaksToday();
+  if (!onBreak.length) {
+    teamList.innerHTML = `<div class="card-body"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-msg">No one is on break right now.</div></div></div>`;
+    return;
+  }
+  teamList.innerHTML = onBreak.map(b => {
+    const ag = b.agent||b.Agent||'—';
+    const dept = b.dept||b.Dept||'';
+    const startTs = b.startedAt ? new Date(b.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    return `<div class="row-item" style="padding:11px 13px;">
+      <div class="row-icon" style="background:#10B981;color:#fff;">☕</div>
+      <div class="row-info"><div class="row-title">${ag}</div>
+      <div class="row-meta">${dept} · started ${startTs}</div></div>
+      <span class="pill pill-teal">ON BREAK</span>
+    </div>`;
+  }).join('');
 }
 
 function getBreaks(dateF,agentF){
@@ -708,14 +949,14 @@ function getBreaks(dateF,agentF){
 function myBreaksToday(){return getBreaks(today,user.name);}
 function allBreaksToday(){return getBreaks(today,null);}
 
-function renderBalance(){
+function renderBalance(){ return; /* balance UI removed */
   const myB=myBreaksToday(),used=myB.reduce((s,b)=>s+(parseInt(b.duration||b.Duration)||0),0);
   const rem=Math.max(0,DAILY_MIN-used),pct=Math.min(100,Math.round(used/DAILY_MIN*100));
   U.se('bal-rem',rem);U.se('bal-sub',`${used} of ${DAILY_MIN} minutes used today`);
   document.getElementById('bal-fill').style.width=pct+'%';
 }
 
-function detectActiveBreak(){
+function detectActiveBreak(){ return; /* replaced by renderBreakStatusCard */
   const myBreaks = getBreaks(today, user.name);
   const ab = myBreaks.find(b => (b.status||b.Status||'').toLowerCase() === 'active');
   if (ab) {
@@ -727,7 +968,7 @@ function detectActiveBreak(){
   }
 }
 
-function startLiveBanner(b){
+function startLiveBanner(b){ return; /* live banner UI removed */
   const banner = document.getElementById('live-banner');
   const startTs = b.startedAt ? new Date(b.startedAt).getTime() : Date.now();
   const durMs   = parseInt(b.duration||b.Duration||15) * 60000;
@@ -769,7 +1010,7 @@ function startLiveBanner(b){
 }
 
 
-function populateNewSwapForm() {
+function populateNewSwapForm() { return; /* slot/swap removed */
   // My booked breaks today
   const myBreaks = myBreaksToday().filter(b =>
     ['booked','active'].includes((b.status||'').toLowerCase())
@@ -814,7 +1055,7 @@ function populateNewSwapForm() {
     '<option value="" disabled>No colleagues with booked breaks</option>';
 }
 
-async function submitNewSwapRequest() {
+async function submitNewSwapRequest() { return; /* slot/swap removed */
   const myVal  = document.getElementById('sw-my-break')?.value;
   const toName = document.getElementById('sw-colleague')?.value;
   if (!myVal)  return U.toast('Select your break slot','warn');
@@ -847,7 +1088,7 @@ async function submitNewSwapRequest() {
   }
 }
 
-function renderSwapRequests() {
+function renderSwapRequests() { return; /* slot/swap removed */
   const container = document.getElementById('pending-swaps-list');
   if (!container) return;
 
@@ -924,27 +1165,7 @@ function renderSwapRequests() {
   container.innerHTML = html;
 }
 
-
-async function approveBreak(id) {
-  try {
-    await API.saveBreaks({ action: 'approve_break', id });
-    const b = data?.breakLog?.find(x => (x.id||x.ID) === id);
-    if (b) b.status = 'booked';
-    U.toast('Break approved ✓','ok');
-    renderTeam(); buildSlotGrid();
-  } catch(e) { U.toast('Failed','err'); }
-}
-async function rejectBreak(id) {
-  try {
-    await API.saveBreaks({ action: 'cancel', id });
-    const b = data?.breakLog?.find(x => (x.id||x.ID) === id);
-    if (b) b.status = 'cancelled';
-    U.toast('Break rejected','warn');
-    renderTeam(); buildSlotGrid();
-  } catch(e) { U.toast('Failed','err'); }
-}
-
-async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, accepted, fromAgent, toAgent, swapDate) {
+async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, accepted, fromAgent, toAgent, swapDate) { return; /* slot/swap removed */
   try {
     if (accepted) {
       // Swap the break times in BreakLog
@@ -984,7 +1205,7 @@ async function respondToSwap(swapId, fromBreakId, toBreakId, fromSlot, toSlot, a
 }
 
 
-async function swapBreak() {
+async function swapBreak() { return; /* slot/swap removed */
   const sel = document.getElementById('swap-coll');
   if (!sel || !sel.value) return U.toast('Select a colleague to swap with', 'warn');
 
