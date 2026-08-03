@@ -54,20 +54,11 @@
   <div id="user-strip-wrap"></div>
   <div class="page-content">
 
-    <div class="bal-card">
-      <div style="position:relative;z-index:1;">
-        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Daily Break Balance</div>
-        <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:3px;">
-          <div class="bal-num" id="bal-rem">—</div>
-          <div class="bal-unit">min remaining</div>
-        </div>
-        <div style="font-size:11px;color:rgba(255,255,255,.4);" id="bal-sub">Loading…</div>
-        <div class="bal-bar"><div class="bal-fill" id="bal-fill" style="width:0%;"></div></div>
-      </div>
-    </div>
+    <!-- Daily Break Balance card removed — breaks are now on-demand -->
 
-    <div class="break-live" id="live-banner">
-      <!-- Dynamically populated by renderBookedBanner() or startLiveBanner() -->
+    <!-- Live banner removed (was tied to slot-based flow) -->
+    <div class="break-live" id="live-banner" style="display:none;">
+      <!-- Kept for backward compat but hidden -->
     </div>
 
     <div class="tab-bar">
@@ -195,7 +186,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/nav.js"></script>
-<script>/* v20260414-2135 */
+<script>/* v20260803-final */
 if(!Auth.guard())throw 0;
 const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
 let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
