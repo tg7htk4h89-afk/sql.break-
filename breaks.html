@@ -206,7 +206,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/nav.js"></script>
-<script>/* v20260803-mgmt */
+<script>/* v20260805-onbreak */
 if(!Auth.guard())throw 0;
 const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
 let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
@@ -1044,7 +1044,27 @@ async function rejectBreak(id, agentName) {
 function renderTeamOnBreak() {
   const teamList = document.getElementById('team-list');
   if (!teamList) return;
-  const onBreak = getActiveBreaksToday();
+  const now = U.kuwaitNow();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+
+  // Anyone whose slot time is happening NOW (booked or active)
+  const onBreak = (data?.breakLog || data?.breaks || [])
+    .filter(b => {
+      if (U.normDate(b.date||b.Date||b.break_date) !== today) return false;
+      const st = String(b.status||b.Status||'').toLowerCase();
+      if (!['booked','active'].includes(st)) return false;
+      const bs = String(b.breakStart || b.break_start || '').slice(0,5);
+      if (!bs) return false;
+      const dur = Math.max(15, parseInt(b.duration || b.Duration || 15) || 15);
+      const bMin = toMin2(bs);
+      return nowMin >= bMin && nowMin < bMin + dur;
+    })
+    .sort((a,b) => {
+      const ba = (a.breakStart||a.break_start||'').slice(0,5);
+      const bb = (b.breakStart||b.break_start||'').slice(0,5);
+      return ba.localeCompare(bb);
+    });
+
   if (!onBreak.length) {
     teamList.innerHTML = `<div class="card-body"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-msg">No one is on break right now.</div></div></div>`;
     return;
@@ -1052,11 +1072,14 @@ function renderTeamOnBreak() {
   teamList.innerHTML = onBreak.map(b => {
     const ag = b.agent||b.Agent||'—';
     const dept = b.dept||b.Dept||'';
-    const startTs = b.startedAt ? new Date(b.startedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    const slot = (b.breakStart || b.break_start || '').slice(0,5);
+    const dur = parseInt(b.duration || b.Duration || 15);
+    const bMin = toMin2(slot);
+    const remainingMin = Math.max(0, dur - (nowMin - bMin));
     return `<div class="row-item" style="padding:11px 13px;">
       <div class="row-icon" style="background:#10B981;color:#fff;">☕</div>
       <div class="row-info"><div class="row-title">${ag}</div>
-      <div class="row-meta">${dept} · started ${startTs}</div></div>
+      <div class="row-meta">${dept} · slot ${slot} · ${dur}m · ${remainingMin}m left</div></div>
       <span class="pill pill-teal">ON BREAK</span>
     </div>`;
   }).join('');
