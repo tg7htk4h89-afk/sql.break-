@@ -206,7 +206,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/nav.js"></script>
-<script>/* v20260803-slots */
+<script>/* v20260803-mgmt */
 if(!Auth.guard())throw 0;
 const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
 let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
@@ -938,8 +938,8 @@ function renderApprovals() {
   const badge = document.getElementById('appr-badge');
   if (!list) return;
   const pending = (data?.breakLog || data?.breaks || [])
-    .filter(b => U.normDate(b.date||b.Date)===today && (b.status||b.Status||'').toLowerCase()==='pending_approval')
-    .sort((a,b) => new Date(a.requestedAt||a.startedAt||0) - new Date(b.requestedAt||b.startedAt||0));
+    .filter(b => U.normDate(b.date||b.Date||b.break_date)===today && (b.status||b.Status||'').toLowerCase()==='pending_approval')
+    .sort((a,b) => new Date(a.requestedAt||a.requested_at||a.startedAt||0) - new Date(b.requestedAt||b.requested_at||b.startedAt||0));
   if (badge) {
     if (pending.length) { badge.style.display=''; badge.textContent=pending.length; }
     else { badge.style.display='none'; }
@@ -951,18 +951,35 @@ function renderApprovals() {
   list.innerHTML = pending.map(b => {
     const ag = b.agent||b.Agent||'—';
     const dept = b.dept||b.Dept||'';
-    const blocked = b.blockedBy || '—';
-    const requestedAt = b.requestedAt||b.startedAt;
-    const t = requestedAt ? new Date(requestedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
-    const id = b.id||b.ID;
+    const blocked = b.blockedBy || b.blocked_by || '—';
+    const requestedAt = b.requestedAt || b.requested_at || b.startedAt || b.booked_at;
+    const reqTime = requestedAt ? new Date(requestedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    // The slot the agent wants (their preferred break time)
+    const slot = (b.breakStart || b['Break Start'] || b.break_start || '').slice(0,5);
+    const dur = parseInt(b.duration || b.Duration || 15);
+    const id = b.id || b.ID || b.break_id;
     return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="min-width:0;flex:1;">
           <div style="font-size:14px;font-weight:800;color:var(--t1);">${ag}</div>
-          <div style="font-size:11px;color:var(--t3);margin-top:2px;">${dept} · requested ${t}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px;">${dept}</div>
         </div>
         <span class="pill pill-amber">PENDING</span>
       </div>
+
+      <!-- Requested slot (prominent) -->
+      <div style="background:#fff;border:1.5px solid var(--navy);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+        <div style="font-size:20px;">🕐</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;">Wants slot</div>
+          <div style="font-size:16px;font-weight:900;color:var(--navy);font-feature-settings:'tnum';">${slot || '—'} · ${dur} min</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;color:var(--t3);">Requested at</div>
+          <div style="font-size:11px;font-weight:700;color:var(--t2);">${reqTime}</div>
+        </div>
+      </div>
+
       <div style="font-size:12px;color:var(--t2);margin-bottom:10px;">
         ⚠️ Blocked by: <b>${blocked}</b>
       </div>
