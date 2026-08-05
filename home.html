@@ -981,10 +981,29 @@ function renderOnBreak() {
   const list = document.getElementById('onbreak-list');
   const badge = document.getElementById('onbreak-count');
   if (!list) return;
+
+  // "On break" = any record whose slot time overlaps NOW, in status booked/active
+  const now = U.kuwaitNow();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const toMinX = t => { const p=(t||'').split(':'); return (parseInt(p[0])||0)*60+(parseInt(p[1])||0); };
+
   const onBreak = (data?.breakLog || data?.breaks || [])
-    .filter(b => U.normDate(b.date||b.Date||b.break_date) === today
-              && String(b.status||b.Status||'').toLowerCase() === 'active')
-    .sort((a,b) => new Date(a.startedAt||a.started_at||0) - new Date(b.startedAt||b.started_at||0));
+    .filter(b => {
+      if (U.normDate(b.date||b.Date||b.break_date) !== today) return false;
+      const st = String(b.status||b.Status||'').toLowerCase();
+      if (!['booked','active'].includes(st)) return false;
+      const bs = String(b.breakStart || b['Break Start'] || b.break_start || '').slice(0,5);
+      if (!bs) return false;
+      const dur = Math.max(15, parseInt(b.duration || b.Duration || 15) || 15);
+      const bMin = toMinX(bs);
+      return nowMin >= bMin && nowMin < bMin + dur;
+    })
+    .sort((a,b) => {
+      const ba = (a.breakStart||a.break_start||'').slice(0,5);
+      const bb = (b.breakStart||b.break_start||'').slice(0,5);
+      return ba.localeCompare(bb);
+    });
+
   if (badge) {
     if (onBreak.length) { badge.style.display=''; badge.textContent = onBreak.length; }
     else badge.style.display='none';
@@ -996,20 +1015,21 @@ function renderOnBreak() {
   list.innerHTML = onBreak.map(b => {
     const ag = b.agent || b.Agent || '—';
     const dept = b.dept || b.Dept || '';
-    const startTs = b.startedAt || b.started_at;
-    const startedStr = startTs ? new Date(startTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
-    const dur = parseInt(b.duration || b.Duration || 0);
-    // Live elapsed
-    const elapsedMin = startTs ? Math.floor((Date.now()-new Date(startTs).getTime())/60000) : 0;
+    const slot = (b.breakStart || b.break_start || '').slice(0,5);
+    const dur = parseInt(b.duration || b.Duration || 15);
+    const bMin = toMinX(slot);
+    const elapsedMin = Math.max(0, nowMin - bMin);
+    const remainingMin = Math.max(0, dur - elapsedMin);
+    const pctColor = remainingMin > 5 ? '#10B981' : '#EF4444';
     return `<div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--border);">
-      <div style="width:34px;height:34px;border-radius:10px;background:#10B981;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;">☕</div>
+      <div style="width:34px;height:34px;border-radius:10px;background:${pctColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;">☕</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:800;color:var(--t1);">${ag}</div>
-        <div style="font-size:11px;color:var(--t3);">${dept} · started ${startedStr}${dur?` · ${dur}m slot`:''}</div>
+        <div style="font-size:11px;color:var(--t3);">${dept} · slot ${slot} · ${dur}m</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:15px;font-weight:900;color:#10B981;font-feature-settings:'tnum';">${elapsedMin}m</div>
-        <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;">elapsed</div>
+        <div style="font-size:15px;font-weight:900;color:${pctColor};font-feature-settings:'tnum';">${remainingMin}m</div>
+        <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;">left</div>
       </div>
     </div>`;
   }).join('');
@@ -1046,6 +1066,24 @@ function renderPending() {
 }
 
 init();
+
+// Auto-refresh "Currently On Break" for management every 60 seconds
+if (isMgmt) {
+  setInterval(async () => {
+    try {
+      const fresh = await fetch(CFG.N8N.GET_ALL, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+      });
+      if (!fresh.ok) return;
+      const raw = await fresh.json();
+      const d = Array.isArray(raw) ? raw[0] : raw;
+      if (d?.breakLog) {
+        data.breakLog = d.breakLog;
+        renderOnBreak();
+      }
+    } catch(e) {}
+  }, 60000);
+}
 </script>
 </body>
 </html>
