@@ -330,6 +330,14 @@
     <div class="sec">Quick Actions</div>
     <div class="qa-grid" id="qa-grid-mgmt"></div>
 
+    <!-- Currently On Break (live) -->
+    <div class="sec">Currently On Break <span class="sec-badge teal" id="onbreak-count" style="display:none;"></span></div>
+    <div class="card" style="margin-bottom:14px;">
+      <div id="onbreak-list" style="padding:0 4px;">
+        <div style="text-align:center;padding:14px 0;color:var(--t3);font-size:13px;">No one is on break right now.</div>
+      </div>
+    </div>
+
     <!-- Pending approvals -->
     <div id="pending-section">
       <div class="sec">Pending Approvals <span class="sec-badge red" id="pending-count" style="display:none;"></span></div>
@@ -400,6 +408,7 @@ async function init(force = false) {
     if (isMgmt) {
       renderHero();
       renderMgmtStats();
+      renderOnBreak();
       renderPending();
       renderWeek('week-strip-mgmt');
     } else {
@@ -966,6 +975,44 @@ function renderMgmtQA() {
       <div><div class="qa-label">${a.label}</div><div class="qa-sub">${a.sub}</div></div>
     </a>`
   ).join('');
+}
+
+function renderOnBreak() {
+  const list = document.getElementById('onbreak-list');
+  const badge = document.getElementById('onbreak-count');
+  if (!list) return;
+  const onBreak = (data?.breakLog || data?.breaks || [])
+    .filter(b => U.normDate(b.date||b.Date||b.break_date) === today
+              && String(b.status||b.Status||'').toLowerCase() === 'active')
+    .sort((a,b) => new Date(a.startedAt||a.started_at||0) - new Date(b.startedAt||b.started_at||0));
+  if (badge) {
+    if (onBreak.length) { badge.style.display=''; badge.textContent = onBreak.length; }
+    else badge.style.display='none';
+  }
+  if (!onBreak.length) {
+    list.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:13px;">No one is on break right now.</div>`;
+    return;
+  }
+  list.innerHTML = onBreak.map(b => {
+    const ag = b.agent || b.Agent || '—';
+    const dept = b.dept || b.Dept || '';
+    const startTs = b.startedAt || b.started_at;
+    const startedStr = startTs ? new Date(startTs).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true}) : '—';
+    const dur = parseInt(b.duration || b.Duration || 0);
+    // Live elapsed
+    const elapsedMin = startTs ? Math.floor((Date.now()-new Date(startTs).getTime())/60000) : 0;
+    return `<div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--border);">
+      <div style="width:34px;height:34px;border-radius:10px;background:#10B981;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;">☕</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:800;color:var(--t1);">${ag}</div>
+        <div style="font-size:11px;color:var(--t3);">${dept} · started ${startedStr}${dur?` · ${dur}m slot`:''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:15px;font-weight:900;color:#10B981;font-feature-settings:'tnum';">${elapsedMin}m</div>
+        <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;">elapsed</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderPending() {
