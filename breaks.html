@@ -123,8 +123,25 @@
             <div style="font-size:48px;margin-bottom:8px;">🟢</div>
             <div style="font-size:13px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Break in Progress</div>
             <div id="active-timer" style="font-size:42px;font-weight:900;color:var(--navy);font-feature-settings:'tnum';margin-bottom:18px;">00:00</div>
-            <button class="btn btn-block" onclick="endMyBreak()" style="background:#DC2626;color:#fff;font-size:15px;font-weight:800;padding:14px;">
+            <button class="btn btn-block" onclick="endMyBreak()" style="background:#DC2626;color:#fff;font-size:15px;font-weight:800;padding:14px;margin-bottom:8px;">
               ■ End Break
+            </button>
+            <button class="btn btn-block" onclick="cancelMyActive()" style="background:var(--bg);color:var(--t2);border:1.5px solid var(--border);font-size:13px;font-weight:700;padding:10px;">
+              Cancel Break
+            </button>
+          </div>
+
+          <!-- BOOKED state — future slot reserved -->
+          <div id="state-booked" style="display:none;">
+            <div style="font-size:48px;margin-bottom:8px;">📅</div>
+            <div style="font-size:13px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Booked Slot</div>
+            <div id="booked-slot-time" style="font-size:32px;font-weight:900;color:var(--navy);font-feature-settings:'tnum';margin-bottom:2px;">—</div>
+            <div id="booked-slot-in" style="font-size:12px;color:var(--t3);margin-bottom:16px;">Starts in —</div>
+            <button class="btn btn-block" onclick="cancelMyBooked()" style="background:var(--bg);color:var(--t1);border:1.5px solid var(--border);font-size:14px;font-weight:700;padding:12px;margin-bottom:8px;">
+              Cancel Booking
+            </button>
+            <button class="btn btn-block" id="btn-start-now" onclick="startBookedNow()" style="background:#10B981;color:#fff;font-size:14px;font-weight:800;padding:12px;display:none;">
+              ▶ Start Break Now
             </button>
           </div>
 
@@ -206,7 +223,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/nav.js"></script>
-<script>/* v20260805-onbreak */
+<script>/* v20260805-cancel */
 if(!Auth.guard())throw 0;
 const user=Auth.user(),today=U.today(),isMgmt=Auth.isManagement();
 let data=null,selSlot=null,selDurVal=15,activeBreak=null,bookedBreak=null,timerInt=null,DAILY_MIN=60,MAX_CON=2;
@@ -691,13 +708,22 @@ function renderBreakStatusCard() {
   const idle = document.getElementById('state-idle');
   const pend = document.getElementById('state-pending');
   const act  = document.getElementById('state-active');
+  const bookedEl = document.getElementById('state-booked');
   const myActive  = getMyTodayBreak('active');
   const myPending = getMyTodayBreak('pending_approval');
   const myBooked  = getMyTodayBreak('booked');
 
+  // Hide all first
+  idle.style.display='none';
+  pend.style.display='none';
+  act.style.display='none';
+  if (bookedEl) bookedEl.style.display='none';
+
   if (myActive) {
-    idle.style.display='none'; pend.style.display='none'; act.style.display='';
-    const startTs = myActive.startedAt ? new Date(myActive.startedAt).getTime() : Date.now();
+    act.style.display='';
+    const startTs = myActive.startedAt || myActive.started_at
+      ? new Date(myActive.startedAt || myActive.started_at).getTime()
+      : Date.now();
     if (window._activeTimerInt) clearInterval(window._activeTimerInt);
     window._activeTimerInt = setInterval(() => {
       const elapsed = Math.floor((Date.now()-startTs)/1000);
@@ -708,25 +734,106 @@ function renderBreakStatusCard() {
     return;
   }
   if (myPending) {
-    idle.style.display='none'; pend.style.display=''; act.style.display='none';
+    pend.style.display='';
     const sub = document.getElementById('pending-sub');
-    if (sub) sub.textContent = `Slot ${(myPending.breakStart||'').slice(0,5)} · waiting for management approval`;
+    if (sub) sub.textContent = `Slot ${(myPending.breakStart||myPending.break_start||'').slice(0,5)} · waiting for management approval`;
     if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
     return;
   }
-  if (myBooked) {
-    // Show booked state: display booked slot info in idle area with different message
-    idle.style.display=''; pend.style.display='none'; act.style.display='none';
-    // Build slot grid so agent can see their booking, but disable book button
-    buildSlotGridV2();
-    const btn = document.getElementById('book-btn');
-    if (btn) { btn.disabled = true; btn.innerHTML = `Booked for ${(myBooked.breakStart||'').slice(0,5)} · tap slot to cancel`; }
+  if (myBooked && bookedEl) {
+    // Show booked state with cancel + start-now buttons
+    bookedEl.style.display='';
+    const slot = (myBooked.breakStart || myBooked.break_start || '').slice(0,5);
+    const dur = parseInt(myBooked.duration || myBooked.Duration || 15);
+    const slotEl = document.getElementById('booked-slot-time');
+    const inEl   = document.getElementById('booked-slot-in');
+    const startBtn = document.getElementById('btn-start-now');
+    if (slotEl) slotEl.textContent = slot + ' · ' + dur + ' min';
+    const now = U.kuwaitNow();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    const slotMin = toMin2(slot);
+    const diff = slotMin - nowMin;
+    if (inEl) {
+      if (diff > 0) {
+        const h = Math.floor(diff/60), m = diff%60;
+        inEl.textContent = 'Starts in ' + (h?h+'h ':'') + m + 'm';
+      } else if (diff <= 0 && Math.abs(diff) < dur) {
+        inEl.textContent = 'Slot time reached — tap Start Break Now';
+        if (startBtn) startBtn.style.display = '';
+      } else {
+        inEl.textContent = 'Slot time passed';
+      }
+    }
+    if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
     return;
   }
   // Fully idle — show slot picker
-  idle.style.display=''; pend.style.display='none'; act.style.display='none';
+  idle.style.display='';
   if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
   buildSlotGridV2();
+}
+
+/* ── Cancel an ACTIVE break (marks as cancelled instead of done) ─── */
+async function cancelMyActive() {
+  const my = getMyTodayBreak('active');
+  if (!my) return;
+  if (!confirm('Cancel your current break? It will not count as taken.')) return;
+  const id = my.id || my.ID || my.break_id;
+  if (window._activeTimerInt) { clearInterval(window._activeTimerInt); window._activeTimerInt = null; }
+  my.status = 'cancelled';
+  renderBreakStatusCard(); renderTodayBreaks();
+  try {
+    await API.saveBreaks({ action:'endBreak', id, status:'cancelled' });
+    API.clearCache('getAll');
+    U.toast('Break cancelled','');
+  } catch(e) {
+    my.status = 'active';
+    renderBreakStatusCard();
+    U.toast('Failed to cancel','err');
+  }
+}
+
+/* ── Cancel a booked (future) slot ─────────────────────── */
+async function cancelMyBooked() {
+  const my = getMyTodayBreak('booked');
+  if (!my) return;
+  if (!confirm('Cancel your booked slot at ' + ((my.breakStart||my.break_start||'').slice(0,5)) + '?')) return;
+  const id = my.id || my.ID || my.break_id;
+  my.status = 'cancelled';
+  renderBreakStatusCard(); renderTodayBreaks();
+  try {
+    await API.saveBreaks({ action:'endBreak', id, status:'cancelled' });
+    API.clearCache('getAll');
+    U.toast('Booking cancelled','');
+  } catch(e) {
+    my.status = 'booked';
+    renderBreakStatusCard(); renderTodayBreaks();
+    U.toast('Failed to cancel','err');
+  }
+}
+
+/* ── Start a booked slot immediately (when slot time has arrived) ─── */
+async function startBookedNow() {
+  const my = getMyTodayBreak('booked');
+  if (!my) return;
+  const id = my.id || my.ID || my.break_id;
+  const now = U.kuwaitNow();
+  my.status = 'active';
+  my.startedAt = now.toISOString();
+  renderBreakStatusCard(); renderTodayBreaks();
+  try {
+    await API.saveBreaks({ action:'saveBreak', break:{
+      id, agent:user.name, dept:user.dept||'', date:today,
+      breakStart: my.breakStart || my.break_start,
+      startedAt: my.startedAt, status:'active',
+      duration: parseInt(my.duration || my.Duration || 15) }});
+    API.clearCache('getAll');
+    U.toast('Break started ✓','ok');
+  } catch(e) {
+    my.status = 'booked'; my.startedAt = null;
+    renderBreakStatusCard();
+    U.toast('Failed to start','err');
+  }
 }
 
 /* ── Slot grid builder ─────────────────────────────────── */
