@@ -282,9 +282,28 @@ function statusPill(k) {
 /* ── Fill agents dropdown ── */
 function fillAgents() {
   const agents   = (data?.agents||[]).map(a=>a.n||a.name).filter(Boolean).sort();
-  const approvers = ["Naser Bandar","Hasan Alajmi","Athoub Alnoufal","Shouq Alkandari",
-    "Alanoud Alotaibi","Mohammad Alothman","Abdulrahman Alahmad","Nourah Alhazzani",
-    "Fatmah Alhamar","Badreyah BoRubayea","Mohammad Abdulraheem","Talal Al Jarki","Taher Al Baghli"];
+
+  // Approvers = anyone with access management or wfm (loaded dynamically)
+  // Falls back to the legacy hardcoded list only if userLogins isn't in the payload
+  let approvers;
+  const userLogins = data?.userLogins || data?.users || data?.user_logins || [];
+  if (userLogins.length) {
+    approvers = userLogins
+      .filter(u => {
+        const a = String(u.access || u.Access || '').toLowerCase();
+        const active = u.active === true || u.active === 'true' || u.active === 1 || u.active === undefined;
+        return active && (a === 'management' || a === 'wfm' || a === 'manager' || a === 'admin');
+      })
+      .map(u => u.name || u.Name)
+      .filter(Boolean)
+      .sort();
+  }
+  if (!approvers || !approvers.length) {
+    approvers = ["Naser Bandar","Hasan Alajmi","Athoub Alnoufal","Shouq Alkandari",
+      "Alanoud Alotaibi","Mohammad Alothman","Abdulrahman Alahmad","Nourah Alhazzani",
+      "Fatmah Alhamar","Badreyah BoRubayea","Mohammad Abdulraheem","Talal Al Jarki",
+      "Taher Al Baghli","Hamad AlEidan"];
+  }
 
   const agentOpts  = '<option value="">— Select Agent —</option>'+agents.map(n=>`<option value="${n}">${n}</option>`).join('');
   const mgmtOpts   = '<option value="">— Select Manager —</option>'+approvers.map(n=>`<option value="${n}">${n}</option>`).join('');
