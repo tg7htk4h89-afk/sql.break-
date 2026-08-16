@@ -283,27 +283,49 @@ function statusPill(k) {
 function fillAgents() {
   const agents   = (data?.agents||[]).map(a=>a.n||a.name).filter(Boolean).sort();
 
-  // Approvers = anyone with access management or wfm (loaded dynamically)
-  // Falls back to the legacy hardcoded list only if userLogins isn't in the payload
-  let approvers;
+  // Approvers = anyone with management/wfm access, tried from multiple sources
+  let approvers = [];
+
+  // Source 1: userLogins (raw table from DB)
   const userLogins = data?.userLogins || data?.users || data?.user_logins || [];
   if (userLogins.length) {
     approvers = userLogins
       .filter(u => {
         const a = String(u.access || u.Access || '').toLowerCase();
-        const active = u.active === true || u.active === 'true' || u.active === 1 || u.active === undefined;
+        const activeVal = u.active !== undefined ? u.active : true;
+        const active = activeVal === true || String(activeVal).toLowerCase() === 'yes' || String(activeVal).toLowerCase() === 'true' || activeVal === 1;
         return active && (a === 'management' || a === 'wfm' || a === 'manager' || a === 'admin');
       })
       .map(u => u.name || u.Name)
-      .filter(Boolean)
-      .sort();
+      .filter(Boolean);
   }
-  if (!approvers || !approvers.length) {
+
+  // Source 2: agents payload with senior roles (Team Leader, Assist TL, etc.)
+  if (!approvers.length && data?.agents?.length) {
+    const seniorRoles = ['team leader','assist tl','qa supervisor','head of cc','wfm manager','manager','supervisor'];
+    approvers = data.agents
+      .filter(a => {
+        const role = String(a.role || a.Role || '').toLowerCase();
+        const access = String(a.access || a.Access || '').toLowerCase();
+        return seniorRoles.some(sr => role.includes(sr)) || access === 'management' || access === 'wfm';
+      })
+      .map(a => a.n || a.name || a.Name)
+      .filter(Boolean);
+  }
+
+  // Source 3: hardcoded fallback (includes everyone currently at management access)
+  if (!approvers.length) {
     approvers = ["Naser Bandar","Hasan Alajmi","Athoub Alnoufal","Shouq Alkandari",
       "Alanoud Alotaibi","Mohammad Alothman","Abdulrahman Alahmad","Nourah Alhazzani",
       "Fatmah Alhamar","Badreyah BoRubayea","Mohammad Abdulraheem","Talal Al Jarki",
       "Taher Al Baghli","Hamad AlEidan"];
   }
+
+  // Always ensure Hamad is included even if payload sources miss him
+  if (!approvers.includes("Hamad AlEidan")) approvers.push("Hamad AlEidan");
+
+  // Dedupe + sort
+  approvers = Array.from(new Set(approvers)).sort();
 
   const agentOpts  = '<option value="">— Select Agent —</option>'+agents.map(n=>`<option value="${n}">${n}</option>`).join('');
   const mgmtOpts   = '<option value="">— Select Manager —</option>'+approvers.map(n=>`<option value="${n}">${n}</option>`).join('');
